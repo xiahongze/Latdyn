@@ -19,7 +19,7 @@ import numpy as np
 from numpy.linalg import inv,eigh,eig,norm
 from constants import M_THZ,TPI,KB,THZ_TO_J
 from .ewald import Ewald
-from commonfunc import EigenSolver,MonkhorstPack,tetra_dos
+from commonfunc import EigenSolver,MonkhorstPack
 
 def ConstructFC(alpha,beta,nn,atom):
     """
@@ -454,10 +454,55 @@ class VFFM(object):
             raise ValueError("Force constants not set yet!")
 
         grid = MonkhorstPack(kgrid,withBoundary=True)
+        grid0 = MonkhorstPack(kgrid)
         self.set_kpts(grid,crys=True)
         freq = np.sort(self.get_ph_disp())
+        dos = np.zeros(nstep)
+        fall = np.linspace(freq.min(),freq.max(),nstep)
+        tetra = np.array([
+                [0.,0.,0.],[0.,0.,1.],[0.,1.,0.],[1.,0.,1.], # 1,5,3,6
+                [0.,0.,0.],[1.,0.,0.],[0.,1.,0.],[1.,0.,1.], # 1,2,3,6
+                [1.,1.,0.],[1.,0.,0.],[0.,1.,0.],[1.,0.,1.], # 4,2,3,6
+                [1.,1.,0.],[1.,1.,1.],[0.,1.,0.],[1.,0.,1.], # 4,8,3,6
+                [0.,1.,1.],[1.,1.,1.],[0.,1.,0.],[1.,0.,1.], # 7,8,3,6
+                [0.,1.,1.],[0.,0.,1.],[0.,1.,0.],[1.,0.,1.]  # 7,5,3,6
+        ])
+        tetra /= kgrid
+        tetra = tetra.reshape(24,1,3)
+        tetra_ends = grid0+tetra # shape = 24,len(grid0),3
+        tetra_ends = tetra_ends.reshape(24,-1,1,3)
+        tmp = tetra_ends - grid # shape = 24,len(grid0),len(grid),3
+        tmp = np.sum((tmp)**2,axis=-1) # shape = 24,len(grid0),len(grid)
+        # find the indices of each tetrahedral ends
+        indices = tmp.argsort()[:,:,0] # shape = 24,len(grid0)
+        freq6 = freq[indices] # shape = 24,len(grid0),len(freq[0])
+        freq6 = freq6.reshape((6,4,len(grid0),-1))
+        freq6 = np.sort(freq6,axis=1)
+        f1 = freq6[:,0,:,:]; f2 = freq6[:,1,:,:]
+        f3 = freq6[:,2,:,:]; f4 = freq6[:,3,:,:]
+        f21 = f2 - f1; f31 = f3 - f1; f41 = f4 - f1
+        f32 = f3 - f2; f42 = f4 - f2; f43 = f4 - f3
+        # get rid of dividing zeros
+        mask = (f21<1e-3); f21 += mask*1e-4
+        mask = (f31<1e-3); f31 += mask*1e-4
+        mask = (f41<1e-3); f41 += mask*1e-4
+        mask = (f32<1e-3); f32 += mask*1e-4
+        mask = (f42<1e-3); f42 += mask*1e-4
+        mask = (f43<1e-3); f43 += mask*1e-4
+        for i in range(nstep):
+            f = fall[i]
+            c2 = (f<f2)*(f>=f1) # in Appendix C, Blochl PRB 1994
+            c3 = (f<f3)*(f>=f2)
+            c4 = (f<=f4)*(f>=f3)
+            d2 = 3.*(f-f1)**2/f21/f31/f41 * c2
+            d3 = (3.*f21+6*(f-f2)-3.*(f31+f42)*(f-f2)**2/f32/f42) \
+                    / f31/f41 * c3
+            d4 = 3.*(f4-f)**2/f41/f42/f43 * c4
+            dos[i] = (d2+d3+d4).sum()
 
-        self.dos = tetra_dos(freq,kgrid,grid,self.N,nstep)
+        integral = np.trapz(y=dos,x=fall)
+        dos *= self.N*3.0/integral
+        self.dos = (fall,dos)
         np.savetxt("dos.csv", self.dos, delimiter=",",fmt="%10.5f")
         return self.dos
 
@@ -526,7 +571,7 @@ class VFFM(object):
         """
         pickle.dump(self,open(filename,"wb"))
 
-    def reload(filename="myvffm.pickle"):
+    def Reload(filename="myvffm.pickle"):
         """Reload previous calculation"""
         return pickle.load(open(filename))
 
