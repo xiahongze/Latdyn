@@ -1,17 +1,16 @@
 #!/usr/bin/env python
 """
-This is a simplified Valence Force Field Model which involves two
-major interactions, i.e, bond-stretching and bond-bending forces. The
-author found that the VFFM described in one PRB paper contains
-unneccessary interactions that don't contribute to flexibility nor
-help with fitting process. The so-called co-planar interaction does
-not make many physical sense to the author's knowledge. As a
-consequence, the author made this model (re-built Keating model) to
-test this known fact.
+This is the Adiabatic Bond-Charge Model which involves three major
+interactions, i.e, ion-ion bond-stretching, ion-BC bond-stretching
+and BC-BC bond-bending forces.
 
 Hongze Xia
-Mon Aug 18 17:36:02 2014
-Ref: http://journals.aps.org/prb/abstract/10.1103/PhysRevB.84.155204
+Mon 13 Apr 2015 21:05:44 AEST
+Ref:
+1. Weber, W. Adiabatic bond charge model for the phonons in diamond, Si, 
+    Ge, and alpha-Sn. Phys. Rev. B (1977)
+2. Rajput, B. D. & Browne, D. A. Lattice dynamics of II-VI materials using
+    the adiabatic bond-charge model. Phys. Rev. B 53, 9052–9058 (1996).
 }
 """
 import pickle
@@ -21,7 +20,7 @@ from constants import M_THZ,TPI,KB,THZ_TO_J
 from .ewald import Ewald
 from commonfunc import EigenSolver,MonkhorstPack,tetra_dos
 
-def ConstructFC(alpha,beta,nn,atom):
+def ConstructFC(alpha,beta,nn,atom,nnlab,isBC):
     """
     Construct the force constant tensors according to nearest neighbours.
     It assumes single type of bonding for one atom. But one could manually
@@ -32,6 +31,10 @@ def ConstructFC(alpha,beta,nn,atom):
         bond-bending force constant
     nn: array of shape (N,3)
         all nearest neighbours in unit of lattice constant
+    nnlab: string (N,)
+        labels of nn
+    isBC: boolean
+        whether atom is BC
     return: ndarray of shape (N,3,3)
         tensors for all nearest neighbours
     """
@@ -44,26 +47,36 @@ def ConstructFC(alpha,beta,nn,atom):
     Alpha = np.zeros((N,3,3))
     Beta = np.zeros((N,3,3))
     tmp = np.zeros((3,3))
-    d2 = np.dot(atom-nn[0],atom-nn[0])
 
     for n1 in range(N):
-        for a in range(3):
-            for b in range(3):
-                Alpha[n1,a,b] = -(atom[a]-nn[n1,a])**2 if a == b \
-                    else -(atom[a]-nn[n1,a])*(atom[b]-nn[n1,b])
-        Alpha[n1] *= alpha[n1]
+        if not (isBC) or (isBC and nnlab[n1] != 'BC'):
+            for a in range(3):
+                for b in range(3):
+                    Alpha[n1,a,b] = -(atom[a]-nn[n1,a])**2 if a == b \
+                        else -(atom[a]-nn[n1,a])*(atom[b]-nn[n1,b])
+            d1 = norm(atom-nn[n1])
+            Alpha[n1] *= alpha[n1]/d1/d1
         for n2 in range(N):
-            if n1 != n2:
-                for a in range(3):
-                    for b in range(3):
-                        if a == b:
-                            tmp[a,a] = (-atom[a]+nn[n2,a])*(2*atom[a]-nn[n1,a]-nn[n2,a])
-                        else:
-                            tmp[a,b] = (-atom[b]+nn[n2,b])*(2*atom[a]-nn[n1,a]-nn[n2,a])
-                Beta[n1] += tmp*beta[n1,n2]
+            if (n1 != n2):
+                tf1 = (not (isBC) and nnlab[n1] == 'BC' and nnlab[n2] = 'BC')
+                if isBC: # make sure BCs are connected to the same ion
+                    d2 = norm(nn[n1]-nn[n2])
+                    tf0 = (d1-d2)<1e-4
+                tf2 = (isBC and nnlab[n1] == 'BC' and nnlab[n2] != 'BC' and tf0)
+                tf3 = (isBC and nnlab[n1] != 'BC' and nnlab[n2] == 'BC' and tf0)
+                if tf1 or tf2 or tf3:
+                    for a in range(3):
+                        for b in range(3):
+                            if a == b:
+                                tmp[a,a] = (-atom[a]+nn[n2,a])*(2*atom[a]-nn[n1,a]-nn[n2,a])
+                            else:
+                                tmp[a,b] = (-atom[b]+nn[n2,b])*(2*atom[a]-nn[n1,a]-nn[n2,a])
+                    if tf1:
+                        d2 = norm(atom-nn[n2])
+                    Beta[n1] += tmp*beta[n1,n2]/d1/d2
 
-    Alpha *= 8/d2
-    Beta *= 2/d2
+    Alpha *= 8
+    Beta *= 2
 
     return Alpha+Beta
 
@@ -106,9 +119,9 @@ def DynBuild(basis,mass,bvec,fc,nn,label,kpts,crys=True):
     # scale it to SI unit, omega^2 not frequency^2 after diagonalisation
     return dyn*M_THZ
 
-class VFFM(object):
+class ABCM(object):
     """
-    Valence Force Field Model takes inputs:
+    Adiabatic Bond-Charge takes inputs:
     lvec: ndarray, (3,3)
         lattice vectors in unit of alat
     basis: ndarray, (N,3)
