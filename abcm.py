@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 """
 This is the Adiabatic Bond-Charge Model which involves three major
 interactions, i.e, ion-ion bond-stretching, ion-BC bond-stretching
@@ -17,10 +18,10 @@ import pickle
 import numpy as np
 from numpy.linalg import inv,eigh,eig,norm
 from constants import M_THZ,TPI,KB,THZ_TO_J
-from .ewald import Ewald
+from ewald import Ewald
 from commonfunc import EigenSolver,MonkhorstPack,tetra_dos
 
-def ConstructFC(alpha,beta,nn,atom,nnlab,isBC):
+def ConstructFC(alpha,beta,nn,atom,nnsym,isBC):
     """
     Construct the force constant tensors according to nearest neighbours.
     It assumes single type of bonding for one atom. But one could manually
@@ -31,7 +32,7 @@ def ConstructFC(alpha,beta,nn,atom,nnlab,isBC):
         bond-bending force constant
     nn: array of shape (N,3)
         all nearest neighbours in unit of lattice constant
-    nnlab: string (N,)
+    nnsym: string (N,)
         labels of nn
     isBC: boolean
         whether atom is BC
@@ -46,46 +47,45 @@ def ConstructFC(alpha,beta,nn,atom,nnlab,isBC):
 
     Alpha = np.zeros((N,3,3))
     Beta = np.zeros((N,3,3))
-    tmp = np.zeros((3,3))
+    one = np.ones((3,3))
 
     for n1 in range(N):
-        if not (isBC) or (isBC and nnlab[n1] != 'BC'):
-            for a in range(3):
-                for b in range(3):
-                    Alpha[n1,a,b] = -(atom[a]-nn[n1,a])**2 if a == b \
-                        else -(atom[a]-nn[n1,a])*(atom[b]-nn[n1,b])
-            d1 = norm(atom-nn[n1])
-            Alpha[n1] *= alpha[n1]/d1/d1
+        dvec = (atom-nn[n1]); d1 = norm(dvec)
+        if not (isBC) or (isBC and nnsym[n1] != 'BC'):
+            tmp = dvec*one
+            Alpha[n1] = -np.multiply(tmp,tmp.T)*alpha[n1]/d1/d1
+
         for n2 in range(N):
             if (n1 != n2):
-                tf1 = (not (isBC) and nnlab[n1] == 'BC' and nnlab[n2] = 'BC')
-                if isBC: # make sure BCs are connected to the same ion
-                    d2 = norm(nn[n1]-nn[n2])
-                    tf0 = (d1-d2)<1e-4
-                tf2 = (isBC and nnlab[n1] == 'BC' and nnlab[n2] != 'BC' and tf0)
-                tf3 = (isBC and nnlab[n1] != 'BC' and nnlab[n2] == 'BC' and tf0)
-                if tf1 or tf2 or tf3:
-                    for a in range(3):
-                        for b in range(3):
-                            if a == b:
-                                tmp[a,a] = (-atom[a]+nn[n2,a])*(2*atom[a]-nn[n1,a]-nn[n2,a])
-                            else:
-                                tmp[a,b] = (-atom[b]+nn[n2,b])*(2*atom[a]-nn[n1,a]-nn[n2,a])
-                    if tf1:
-                        d2 = norm(atom-nn[n2])
-                    Beta[n1] += tmp*beta[n1,n2]/d1/d2
+                dvec1 = (atom-nn[n2]); d2 = norm(nn[n1]-nn[n2])
+                tf0 = (d1-d2)<1e-4 # bond-lengths are equal
+                tf1 = (not (isBC) and nnsym[n1] == 'BC' and nnsym[n2] == 'BC' and tf0)
+                # if atom is an ion
+                if tf1:
+                    tmp1 = (dvec1+dvec)*one; tmp2 = -dvec1*one; d2 = norm(dvec1)
+                    Beta[n1] += np.multiply(tmp1.T,tmp2)*beta[n1,n2]/d1/d2
+                    continue # skip the rest in this loop
+                # if atom is a BC
+                tf2 = (isBC and nnsym[n1] == 'BC' and nnsym[n2] != 'BC' and tf0)
+                if tf2: # if nnsym[n1] is a BC
+                    tmp1 = one*dvec1; dvec2 = (nn[n1]-nn[n2]); tmp2 = (one*dvec2).T
+                    Beta[n1] += np.multiply(tmp1,tmp2)*beta[n1,n2]/d1/d2
+                    continue
+                tf3 = (isBC and nnsym[n1] != 'BC' and nnsym[n2] == 'BC' and tf0)
+                if tf3: # if nnsym[n1] is an ion
+                    dvec2 = (nn[n1]-nn[n2]); tmp1 = (dvec2-dvec)*one; tmp2 = dvec2*one
+                    Beta[n1] += -np.multiply(tmp1.T,tmp2)*beta[n1,n2]/d1/d2
+                    continue
 
     Alpha *= 8
     Beta *= 2
 
     return Alpha+Beta
 
-def DynBuild(basis,mass,bvec,fc,nn,label,kpts,crys=True):
+def DynBuild(basis,bvec,fc,nn,label,kpts,Ni,Mass,crys=True):
     """
     Build the dynamical matrix from the short range force constant tensors.
     basis: ndarray of shape (N,3)
-    mass: ndarray of shape (N)
-        atomic unit, e.g, m(Si) = 28
     bvec: ndarray of shape (3,3)
         reciprocal lattice vectors
     fc: list of array N*[fc_i], fc_i.shape = (len(nn_i),3,3)
@@ -101,21 +101,26 @@ def DynBuild(basis,mass,bvec,fc,nn,label,kpts,crys=True):
     """
     kpts = np.array(kpts)
     if kpts.shape == (3,): kpts = np.array([kpts])
-    assert len(basis) == len(mass)
-    N = len(mass); nks = len(kpts)
-    dyn = np.zeros((nks,N*3,N*3),dtype=complex)
+    N = len(basis); nks = len(kpts)
+    dyn = np.zeros((nks,Ni*3,Ni*3),dtype=complex)
+    M_1 = inv(Mass)
     # convert kpts to Cartesian coordinates if needed
     kpts = np.dot(bvec,kpts.T).T*2.*np.pi if crys else kpts*2.*np.pi
     for q in range(nks):
+        dyn1 = np.zeros((N*3,N*3),dtype=complex) # temperoary
         for i in range(N):
             for j in range(len(nn[i])):
                 # With which atom?
                 x = basis[i]-nn[i][j]; ka = label[i][j]
-                mass_root = np.sqrt(mass[i]*mass[ka])
                 # ON-diagonal
-                dyn[q,i*3:i*3+3,i*3:i*3+3] -= fc[i][j]/mass[i]
+                dyn1[i*3:i*3+3,i*3:i*3+3] -= fc[i][j]
                 # OFF-diagonal
-                dyn[q,i*3:i*3+3,ka*3:ka*3+3] += fc[i][j]/mass_root*np.exp(-1j*np.dot(kpts[q],x))
+                dyn1[i*3:i*3+3,ka*3:ka*3+3] += fc[i][j]*np.exp(-1j*np.dot(kpts[q],x))
+        # ABCM matrices
+        R = dyn1[0:Ni*3,0:Ni*3]; S = dyn1[Ni*3:,Ni*3:]
+        T = dyn1[0:Ni*3,Ni*3:]; Ts = dyn1[Ni*3:,0:Ni*3]
+        # print R.shape,S.shape,T.shape,Ts.shape
+        tmp = T.dot(inv(S)); dyn[q] = np.dot(M_1, R - tmp.dot(Ts))
     # scale it to SI unit, omega^2 not frequency^2 after diagonalisation
     return dyn*M_THZ
 
@@ -126,17 +131,16 @@ class ABCM(object):
         lattice vectors in unit of alat
     basis: ndarray, (N,3)
         base atoms
-    mass: array, (N,)
+    mass: array, (N_ion,)
         in atomic unit
     symbol: string array or list, (N,)
-        Element names of the basis, e.g., ["Si","Si"]
+        Element names of the basis, e.g., ["Si","Si","BC","BC","BC","BC"]
     """
     def __init__(self,lvec,basis,mass,symbol):
         self.lvec,self.bas,self.mass,self.symbol =\
                     map(np.array,(lvec,basis,mass,symbol))
         assert self.lvec.shape == (3,3)
-        assert len(self.bas) == len(self.mass)
-        assert len(symbol) == len(self.mass)
+        assert len(self.bas) == len(symbol)
 
         # initialise the force constant tensors
         self.fc = []
@@ -150,16 +154,25 @@ class ABCM(object):
         self.bvec = inv(self.lvec)
         # number of basis
         self.N = len(self.bas)
+        # work out the number of ions and BCs
+        self.isBC = (self.symbol=="BC")
+        self.N_bc = np.sum(self.isBC)
+        self.N_ion = self.N - self.N_bc
+        # number of nn for ion and BC, 8 for tetrahedral
+        self.nn_cut = 2*self.N_bc
+        assert len(mass) == self.N_ion
+        a = []
+        for i in range(self.N_ion):
+            a += [self.mass[i]]*3
+        self.Mass = np.diag(a) # mass matrix
         # number of bands
-        self.nbnd = 3*self.N
+        self.nbnd = 3*self.N_ion
         # unit cell volume in terms of alat
         self.v = abs(np.inner(np.cross(self.lvec[0], self.lvec[1]), self.lvec[2]))
         # find and set the n.n
         self.set_nn()
         # the total number of first n.n.
         self.n1 = [len(self.nn[i]) for i in range(self.N) ]
-        # initialise second n.n.
-        self.n2 = None
         # initiate Ewald object
         self.set_ewald()
 
@@ -199,7 +212,7 @@ class ABCM(object):
             2nd n.n. interactions.
         showDist: boolean
             To inspect all bond-lengths of all n.n. upto nmax. Recommended
-            when one wants to use 2nd n.n.
+            for the first run.
         """
         X,Y,Z = scope
         x,y,z = np.mgrid[-X:X+1, -Y:Y+1, -Z:Z+1]
@@ -214,9 +227,14 @@ class ABCM(object):
             dist = np.array([norm(self.bas[i]-item) for item in allatoms])
             nn_ind = dist.argsort()[1:nmax] # consider the first nmax n.n.
             if showDist: print dist[nn_ind]
+            if self.nn_cut>nmax-1:
+                print dist[nn_ind]
+                # you probably have interface problems
+                raise ValueError("You might need to inspect the nearest neighbours \
+                and need to set a reasonable dist2.")
+
             if dist2 == None:
-                first_nn_ind = [item for item in nn_ind if \
-                        abs(dist[item] - dist[nn_ind[0]])<1e-4]
+                first_nn_ind = nn_ind[0:self.nn_cut]
             else:
                 # if dist2 exisits, count till that distance
                 first_nn_ind = [item for item in nn_ind if \
@@ -234,45 +252,9 @@ class ABCM(object):
         if dist2:
             self.n2 = [len(self.nn[i])-self.n1[i] for i in range(self.N)]
 
-    def set_bulk_fc(self,alpha,beta):
+    def set_fc(self,fc_dict):
         '''
-        Set the force constant tensors. Only two force constants needed:
-        alpha: float
-            bond-stretching
-        beta: float
-            bond-bending
-        '''
-        self.fc = []
-        for i in range(self.N):
-            N = len(self.nn[i])
-            b = [beta]*N; bb = [b]*N
-            self.fc.append(ConstructFC \
-                ([alpha]*N,bb,self.nn[i],self.bas[i]))
-
-    def set_bulk_fc2(self,alpha,beta):
-        '''
-        Set the force constant tensors. upto 2nd n.n.
-        alpha: 2*[float]
-            bond-stretching
-        beta: 2*[float]
-            bond-bending
-        '''
-        self.fc = []
-        a1,a2 = alpha; b1,b2 = beta
-        for i in range(self.N):
-            n1 = self.n1[i]
-            n2 = self.n2[i]
-            b = [b1]*n1; bb = [b]*n1
-            self.fc.append(ConstructFC \
-                ([a1]*n1,bb,self.nn[i][0:n1],self.bas[i]))
-            b = [b2]*n2; bb = [b]*n2
-            tmp = ConstructFC \
-                ([a2]*n2,bb,self.nn[i][n1::],self.bas[i])
-            self.fc[i] = np.vstack((self.fc[i],tmp))
-
-    def set_sl_fc(self,fc_dict):
-        '''
-        fc_dict involves alpha and beta for different interactions between atoms.
+        fc_dict involves alpha and beta for different interactions between atoms/BCs.
         Make sure one now exactly how many interactions are involved by looking
         at the n.n for each atom in the basis. i.e., calc.get_nn_label()
         fc_dict must have this kind of format:
@@ -281,7 +263,10 @@ class ABCM(object):
         }
         a_dict and b_dict look like:
         a_dict = {
-        "Ga-As": 10.0, "Al-As": 11.0, "Ga-Ga2":1.0
+        "Ga-As": 10.0, "Al-As": 11.0, "Ga-BC":1.0
+        }
+        b_dict = {
+        "BC-Ga":10., "BC-As": 20.
         }
         The last one with a trailing 2 indicates a second n.n. interactions.
         '''
@@ -297,50 +282,47 @@ class ABCM(object):
             for j in range(nos):
                 key1 = onsite+"-"+offsite[j]
                 key2 = offsite[j]+"-"+onsite
-                if j >= self.n1[i]:
-                    key1 += "2"
-                    key2 += "2"
+                isbcbc = (onsite == "BC" and offsite[j] == "BC")
                 if a_dict.has_key(key1):
                     key = key1
                 elif a_dict.has_key(key2):
                     key = key2
+                elif isbcbc:
+                    pass
                 else:
                     raise ValueError("Missing interaction: "+key1)
-                alp[j] = a_dict[key]
+                alp[j] = 0.0 if isbcbc else a_dict[key]
                 tmp = []
                 for k in range(nos):
                     if k != j:
-                        key3 = onsite+"-"+offsite[k]
-                        key4 = offsite[k]+"-"+onsite
+                        mask = np.array([onsite,offsite[j],offsite[k]])
+                        nion = np.sum((mask=="BC"))
+                        if nion!=2: # you need to have two BCs
+                            tmp.append(0.0)
+                            continue
+                        if onsite != "BC":
+                            key3 = onsite+"-"+offsite[k]
+                            key4 = offsite[k]+"-"+onsite
+                        else:
+                            key3 = offsite[j]+"-"+offsite[k]
+                            key4 = offsite[k]+"-"+offsite[j]
                         # print keys
-                        if j >= self.n1[i]:
-                            key3 += "2"
-                            key4 += "2"
                         if b_dict.has_key(key3):
                             key_b = key3
                         elif b_dict.has_key(key4):
                             key_b = key4
                         else:
                             raise ValueError("Missing interaction: "+key3)
-                        if b_dict.has_key(key1):
-                            key_a = key1
-                        elif b_dict.has_key(key2):
-                            key_a = key2
-                        else:
-                            raise ValueError("Missing interaction: "+key1)
-                        if (j < self.n1[i] and j < self.n1[i]) or (j >= self.n1[i] and j >= self.n1[i]):
-                            b_avg = (b_dict[key_b]+b_dict[key_a])*0.5
-                            tmp.append(b_avg)
-                        else:
-                            tmp.append(0.0)
-                    elif k==j:
+                        tmp.append(b_dict[key_b])
+                    #
+                    else: # if k == j
                         tmp.append(0.0)
                 #
                 bet[j] = tmp
             #
             self.fc.append(ConstructFC \
-                (alp,bet,self.nn[i],self.bas[i]))
-        self.__fix_interface()
+                (alp,bet,self.nn[i],self.bas[i],self.nnsymb[i],self.isBC[i]))
+        # self.__fix_interface()
 
     def __fix_interface(self):
         # Average the interface connection for set_sl_fc()
@@ -406,8 +388,10 @@ class ABCM(object):
             raise ValueError("Force constants not set yet!")
         elif self.kpts == []:
             raise ValueError("Kpts not set yet!")
-        self.dyn = DynBuild(self.bas,self.mass,self.bvec,self.fc,\
-                self.nn,self.label,self.kpts,crys=self.iskcrys)
+        self.dyn = DynBuild(self.bas,self.bvec,self.fc,\
+                self.nn,self.label,self.kpts,self.N_ion,self.Mass,crys=self.iskcrys)
+        if self.ecalc != None:
+            self.dyn += self.eps*self.ecalc.get_dyn(self.mass,self.kpts,crys=self.iskcrys)
 
     def get_dyn(self):
         """
@@ -426,9 +410,7 @@ class ABCM(object):
         force constans and kpts are specified. Return phonon frequencies.
         """
         self.__set_dyn()
-        if self.ecalc != None:
-            self.dyn += self.eps*self.ecalc.get_dyn(self.mass,self.kpts,crys=self.iskcrys)
-        self.freq,self.evec = EigenSolver(self.dyn,fldata=None)
+        self.freq,self.evec = EigenSolver(self.dyn,fldata=None,herm=False)
         return self.freq
 
     def get_nn_label(self):

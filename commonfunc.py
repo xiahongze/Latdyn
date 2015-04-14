@@ -3,7 +3,7 @@ import numpy as np
 from numpy.linalg import inv,eigh,eig,norm
 from constants import M_THZ,TPI,KB,THZ_TO_J
 
-def EigenSolver(m,fldata="freq_mode_dyn.pckl"):
+def EigenSolver(m,fldata="freq_mode_dyn.pckl",herm=True):
     """
     This function returns phonon frequencies in THz
     and dump the results if fldata != None
@@ -13,7 +13,8 @@ def EigenSolver(m,fldata="freq_mode_dyn.pckl"):
     w2 = np.zeros((nks,nval),dtype=complex)
     evec = np.zeros(m.shape,dtype=complex)
     for q in range(nks):
-        tmp,evec[q] = eigh(m[q]); w2[q] = tmp.real
+        tmp,evec[q] = eigh(m[q]) if herm else eig(m[q])
+        w2[q] = tmp.real
         if (w2[q]<-1e-4).sum() > 0:
             print "Warning: imaginary frequency occurs at k[%d]" % q
     freq = np.sqrt(np.abs(w2))/TPI

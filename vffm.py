@@ -3,7 +3,7 @@
 This is a simplified Valence Force Field Model which involves two
 major interactions, i.e, bond-stretching and bond-bending forces. The
 author found that the VFFM described in one PRB paper contains
-unneccessary interactions that don't contribute to flexibility nor
+unnecessary interactions that don't contribute to flexibility nor
 help with fitting process. The so-called co-planar interaction does
 not make many physical sense to the author's knowledge. As a
 consequence, the author made this model (re-built Keating model) to
@@ -43,25 +43,17 @@ def ConstructFC(alpha,beta,nn,atom):
 
     Alpha = np.zeros((N,3,3))
     Beta = np.zeros((N,3,3))
-    tmp = np.zeros((3,3))
     d2 = np.dot(atom-nn[0],atom-nn[0])
-
+    one = np.ones((3,3))
+    
     for n1 in range(N):
-        for a in range(3):
-            for b in range(3):
-                Alpha[n1,a,b] = -(atom[a]-nn[n1,a])**2 if a == b \
-                    else -(atom[a]-nn[n1,a])*(atom[b]-nn[n1,b])
-        Alpha[n1] *= alpha[n1]
+        dvec = (atom-nn[n1]); tmp = dvec*one
+        Alpha[n1] = -np.multiply(tmp,tmp.T)*alpha[n1]
         for n2 in range(N):
             if n1 != n2:
-                for a in range(3):
-                    for b in range(3):
-                        if a == b:
-                            tmp[a,a] = (-atom[a]+nn[n2,a])*(2*atom[a]-nn[n1,a]-nn[n2,a])
-                        else:
-                            tmp[a,b] = (-atom[b]+nn[n2,b])*(2*atom[a]-nn[n1,a]-nn[n2,a])
-                Beta[n1] += tmp*beta[n1,n2]
-
+                dvec1 = (atom-nn[n2])
+                tmp1 = (dvec1+dvec)*one; tmp2 = -dvec1*one
+                Beta[n1] += np.multiply(tmp1.T,tmp2)*beta[n1,n2]
     Alpha *= 8/d2
     Beta *= 2/d2
 
