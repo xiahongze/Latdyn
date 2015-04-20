@@ -50,31 +50,42 @@ def ConstructFC(alpha,beta,nn,atom,nnsym,isBC):
     one = np.ones((3,3))
 
     for n1 in range(N):
-        dvec = (atom-nn[n1]); d1 = norm(dvec)
-        if not (isBC) or (isBC and nnsym[n1] != 'BC'):
+        dvec = (atom-nn[n1]); d = norm(dvec)
+        if not (isBC and nnsym[n1] == 'BC'):
             tmp = dvec*one
-            Alpha[n1] = -np.multiply(tmp,tmp.T)*alpha[n1]/d1/d1
+            Alpha[n1] = -np.multiply(tmp,tmp.T)*alpha[n1]/d/d
 
         for n2 in range(N):
             if (n1 != n2):
-                dvec1 = (atom-nn[n2]); d2 = norm(nn[n1]-nn[n2])
-                tf0 = (d1-d2)<1e-4 # bond-lengths are equal
-                tf1 = (not (isBC) and nnsym[n1] == 'BC' and nnsym[n2] == 'BC' and tf0)
                 # if atom is an ion
+                dvec1 = (atom-nn[n1]); d1 = norm(dvec1)
+                dvec2 = (atom-nn[n2]); d2 = norm(dvec2)
+                tf0 = abs(d1-d2)<1e-4 # bond-lengths are equal
+                tf1 = (not (isBC) and nnsym[n1] == 'BC' and nnsym[n2] == 'BC' and tf0)
                 if tf1:
-                    tmp1 = (dvec1+dvec)*one; tmp2 = -dvec1*one; d2 = norm(dvec1)
-                    Beta[n1] += np.multiply(tmp1.T,tmp2)*beta[n1,n2]/d1/d2
+                    # continue
+                    tmp1 = (dvec1+dvec2)*one; tmp2 = -dvec2*one
+                    Beta[n1] += 0.5*np.multiply(tmp1.T,tmp2)*beta[n1,n2]/d1/d2
                     continue # skip the rest in this loop
-                # if atom is a BC
+                # if atom is a BC and nnsym[n2] is an ion
+                dvec1 = atom-nn[n2]; d1 = norm(dvec1) # BC-ION
+                dvec2 = nn[n1]-nn[n2]; d2 = norm(dvec2) # BC-ION
+                tf0 = abs(d1-d2)<1e-4 # bond-lengths are equal
                 tf2 = (isBC and nnsym[n1] == 'BC' and nnsym[n2] != 'BC' and tf0)
-                if tf2: # if nnsym[n1] is a BC
-                    tmp1 = one*dvec1; dvec2 = (nn[n1]-nn[n2]); tmp2 = (one*dvec2).T
+                if tf2:
+                    # continue
+                    tmp1 = one*dvec1; tmp2 = (one*dvec2).T
                     Beta[n1] += np.multiply(tmp1,tmp2)*beta[n1,n2]/d1/d2
                     continue
+                # if atom is a BC and nnsym[n1] is an ion
+                dvec1 = nn[n1]-atom; d1 = norm(dvec1)
+                dvec2 = nn[n1]-nn[n2]; d2 = norm(dvec2)
+                tf0 = abs(d1-d2)<1e-4 # bond-lengths are equal
                 tf3 = (isBC and nnsym[n1] != 'BC' and nnsym[n2] == 'BC' and tf0)
                 if tf3: # if nnsym[n1] is an ion
-                    dvec2 = (nn[n1]-nn[n2]); tmp1 = (dvec2-dvec)*one; tmp2 = dvec2*one
-                    Beta[n1] += -np.multiply(tmp1.T,tmp2)*beta[n1,n2]/d1/d2
+                    # continue
+                    tmp1 = (dvec1+dvec2)*one; tmp2 = -dvec2*one
+                    Beta[n1] += 0.5*np.multiply(tmp1,tmp2.T)*beta[n1,n2]/d1/d2
                     continue
 
     Alpha *= 8
@@ -119,6 +130,9 @@ def DynBuild(basis,bvec,fc,nn,label,kpts,Ni,Mass,crys=True):
         # ABCM matrices
         R = dyn1[0:Ni*3,0:Ni*3]; S = dyn1[Ni*3:,Ni*3:]
         T = dyn1[0:Ni*3,Ni*3:]; Ts = dyn1[Ni*3:,0:Ni*3]
+        # print S.real
+        # print S.imag
+        # print np.allclose(T,np.conj(Ts.T))
         # print R.shape,S.shape,T.shape,Ts.shape
         tmp = T.dot(inv(S)); dyn[q] = np.dot(M_1, R - tmp.dot(Ts))
     # scale it to SI unit, omega^2 not frequency^2 after diagonalisation
@@ -304,8 +318,8 @@ class ABCM(object):
                 for k in range(nos):
                     if k != j:
                         mask = np.array([onsite,offsite[j],offsite[k]])
-                        nion = np.sum((mask=="BC"))
-                        if nion!=2: # you need to have two BCs
+                        nbc = np.sum((mask=="BC"))
+                        if nbc!=2: # you need to have two BCs
                             tmp.append(0.0)
                             continue
                         if onsite != "BC":
@@ -326,6 +340,7 @@ class ABCM(object):
                     else: # if k == j
                         tmp.append(0.0)
                 #
+                # print tmp
                 bet[j] = tmp
             #
             self.fc.append(ConstructFC \
@@ -342,6 +357,7 @@ class ABCM(object):
                     bond1 = self.bas[offsiteLabel] - self.nn[offsiteLabel][k]
                     if norm(np.cross(bond0,bond1))<1e-3: # the same bond
                         tmp = self.fc[i][j] + self.fc[offsiteLabel][k].T
+                        print np.allclose(self.fc[i][j],self.fc[offsiteLabel][k].T)
                         tmp *= 0.5
                         self.fc[i][j] = tmp
                         self.fc[offsiteLabel][k] = tmp.T
@@ -713,7 +729,7 @@ class ABCM(object):
         del minimize
 
     def __fit_no_ewald(self,fc):
-        # fc = np.abs(fc)
+        fc = np.abs(fc)
         afc = fc[:self.na]; bfc = fc[self.na:]
         for i in range(self.na):
             print "alpha: %s => %10.6f" % (self.akeys[i],afc[i])
