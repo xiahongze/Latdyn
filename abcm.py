@@ -54,39 +54,44 @@ def ConstructFC(alpha,beta,nn,atom,nnsym,isBC):
         if not (isBC and nnsym[n1] == 'BC'):
             tmp = dvec*one
             Alpha[n1] = -np.multiply(tmp,tmp.T)*alpha[n1]/d/d
-
+        
         for n2 in range(N):
             if (n1 != n2):
                 # if atom is an ion
-                dvec1 = (atom-nn[n1]); d1 = norm(dvec1)
-                dvec2 = (atom-nn[n2]); d2 = norm(dvec2)
-                tf0 = abs(d1-d2)<1e-4 # bond-lengths are equal
-                tf1 = (not (isBC) and nnsym[n1] == 'BC' and nnsym[n2] == 'BC' and tf0)
-                if tf1:
-                    # continue
-                    tmp1 = (dvec1+dvec2)*one; tmp2 = -dvec2*one
-                    Beta[n1] += 0.5*np.multiply(tmp1.T,tmp2)*beta[n1,n2]/d1/d2
-                    continue # skip the rest in this loop
-                # if atom is a BC and nnsym[n2] is an ion
-                dvec1 = atom-nn[n2]; d1 = norm(dvec1) # BC-ION
-                dvec2 = nn[n1]-nn[n2]; d2 = norm(dvec2) # BC-ION
-                tf0 = abs(d1-d2)<1e-4 # bond-lengths are equal
-                tf2 = (isBC and nnsym[n1] == 'BC' and nnsym[n2] != 'BC' and tf0)
-                if tf2:
-                    # continue
-                    tmp1 = one*dvec1; tmp2 = (one*dvec2).T
-                    Beta[n1] += np.multiply(tmp1,tmp2)*beta[n1,n2]/d1/d2
-                    continue
-                # if atom is a BC and nnsym[n1] is an ion
-                dvec1 = nn[n1]-atom; d1 = norm(dvec1)
-                dvec2 = nn[n1]-nn[n2]; d2 = norm(dvec2)
-                tf0 = abs(d1-d2)<1e-4 # bond-lengths are equal
-                tf3 = (isBC and nnsym[n1] != 'BC' and nnsym[n2] == 'BC' and tf0)
-                if tf3: # if nnsym[n1] is an ion
-                    # continue
-                    tmp1 = (dvec1+dvec2)*one; tmp2 = -dvec2*one
-                    Beta[n1] += 0.5*np.multiply(tmp1,tmp2.T)*beta[n1,n2]/d1/d2
-                    continue
+                if not (isBC):
+                    dvec1 = (atom-nn[n1]); d1 = norm(dvec1)
+                    dvec2 = (atom-nn[n2]); d2 = norm(dvec2)
+                    tf0 = abs(d1-d2)<1e-4 # bond-lengths are equal
+                    tf1 = (nnsym[n1] == 'BC' and nnsym[n2] == 'BC' and tf0)
+                    if tf1:
+                        # continue
+                        tmp1 = (dvec1+dvec2)*one; tmp2 = -dvec2*one
+                        Beta[n1] += np.multiply(tmp1.T,tmp2)*beta[n1,n2]/d1/d2
+                        continue # skip the rest in this loop
+                else: # if atom is BC
+                    if nnsym[n1] == 'BC':
+                        # if atom is a BC and nnsym[n2] is an ion
+                        dvec1 = atom-nn[n2]; d1 = norm(dvec1) # BC-ION
+                        dvec2 = nn[n1]-nn[n2]; d2 = norm(dvec2) # BC-ION
+                        tf0 = abs(d1-d2)<1e-4 # bond-lengths are equal
+                        tf2 = (nnsym[n2] != 'BC' and tf0)
+                        if tf2:
+                            # continue
+                            tmp1 = one*dvec1; tmp2 = (one*dvec2)
+                            Beta[n1] += np.multiply(tmp1,tmp2.T)*beta[n1,n2]/d1/d2
+                            # print Beta[n1]
+                            continue
+                    else:
+                        # if atom is a BC and nnsym[n1] is an ion
+                        dvec1 = nn[n1]-atom; d1 = norm(dvec1)
+                        dvec2 = nn[n1]-nn[n2]; d2 = norm(dvec2)
+                        tf0 = abs(d1-d2)<1e-4 # bond-lengths are equal
+                        tf3 = (nnsym[n2] == 'BC' and tf0)
+                        if tf3: # if nnsym[n1] is an ion
+                            # continue
+                            tmp1 = (dvec1+dvec2)*one; tmp2 = -dvec2*one
+                            Beta[n1] += np.multiply(tmp1,tmp2.T)*beta[n1,n2]/d1/d2
+                            continue
 
     Alpha *= 8
     Beta *= 2
@@ -130,11 +135,13 @@ def DynBuild(basis,bvec,fc,nn,label,kpts,Ni,Mass,crys=True):
         # ABCM matrices
         R = dyn1[0:Ni*3,0:Ni*3]; S = dyn1[Ni*3:,Ni*3:]
         T = dyn1[0:Ni*3,Ni*3:]; Ts = dyn1[Ni*3:,0:Ni*3]
+        # print dyn1.real
         # print S.real
         # print S.imag
         # print np.allclose(T,np.conj(Ts.T))
         # print R.shape,S.shape,T.shape,Ts.shape
-        tmp = T.dot(inv(S)); dyn[q] = np.dot(M_1, R - tmp.dot(Ts))
+        # tmp = T.dot(inv(S)); dyn[q] = np.dot(M_1, R - tmp.dot(Ts))
+        tmp = np.dot(inv(S),Ts); dyn[q] = np.dot(M_1, R - np.dot(T,tmp))
     # scale it to SI unit, omega^2 not frequency^2 after diagonalisation
     return dyn*M_THZ
 
@@ -345,19 +352,23 @@ class ABCM(object):
             #
             self.fc.append(ConstructFC \
                 (alp,bet,self.nn[i],self.bas[i],self.nnsymb[i],self.isBC[i]))
-        # self.__fix_interface()
+        self.__fix_interface()
 
     def __fix_interface(self):
         # Average the interface connection for set_sl_fc()
         for i in range(self.N):
+            print "Checking atom ",i
             for j in range(len(self.nn[i])):
                 bond0 = self.bas[i] - self.nn[i][j]
                 offsiteLabel = self.label[i][j]
                 for k in range(len(self.nn[offsiteLabel])):
                     bond1 = self.bas[offsiteLabel] - self.nn[offsiteLabel][k]
-                    if norm(np.cross(bond0,bond1))<1e-3: # the same bond
+                    if np.allclose(bond0,-bond1): # the same bond
                         tmp = self.fc[i][j] + self.fc[offsiteLabel][k].T
-                        print np.allclose(self.fc[i][j],self.fc[offsiteLabel][k].T)
+                        if np.allclose(self.fc[i][j],self.fc[offsiteLabel][k].T):
+                            print self.symbol[i]," with ", self.nnsymb[i][j], " is fine"
+                        else:
+                            print self.symbol[i]," with ", self.nnsymb[i][j], " is not fine"
                         tmp *= 0.5
                         self.fc[i][j] = tmp
                         self.fc[offsiteLabel][k] = tmp.T
