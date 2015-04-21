@@ -16,10 +16,11 @@ Ref:
 """
 import pickle
 import numpy as np
-from numpy.linalg import inv,eigh,eig,norm
+from numpy.linalg import inv,eigh,eig,norm,pinv
 from constants import M_THZ,TPI,KB,THZ_TO_J
 from ewald import Ewald
 from commonfunc import EigenSolver,MonkhorstPack,tetra_dos
+np.set_printoptions(precision=3,linewidth=200,suppress=True)
 
 def ConstructFC(alpha,beta,nn,atom,nnsym,isBC):
     """
@@ -78,7 +79,7 @@ def ConstructFC(alpha,beta,nn,atom,nnsym,isBC):
                         if tf2:
                             # continue
                             tmp1 = one*dvec1; tmp2 = (one*dvec2)
-                            Beta[n1] += np.multiply(tmp1,tmp2.T)*beta[n1,n2]/d1/d2
+                            Beta[n1] = np.multiply(tmp1,tmp2)*beta[n1,n2]/d1/d2
                             # print Beta[n1]
                             continue
                     else:
@@ -133,9 +134,12 @@ def DynBuild(basis,bvec,fc,nn,label,kpts,Ni,Mass,crys=True):
                 # OFF-diagonal
                 dyn1[i*3:i*3+3,ka*3:ka*3+3] += fc[i][j]*np.exp(-1j*np.dot(kpts[q],x))
         # ABCM matrices
+        # print dyn1.real
+        # print dyn1.imag
         R = dyn1[0:Ni*3,0:Ni*3]; S = dyn1[Ni*3:,Ni*3:]
         T = dyn1[0:Ni*3,Ni*3:]; Ts = dyn1[Ni*3:,0:Ni*3]
         # print dyn1.real
+        # print pinv(S).real
         # print S.real
         # print S.imag
         # print np.allclose(T,np.conj(Ts.T))
@@ -352,7 +356,7 @@ class ABCM(object):
             #
             self.fc.append(ConstructFC \
                 (alp,bet,self.nn[i],self.bas[i],self.nnsymb[i],self.isBC[i]))
-        self.__fix_interface()
+        # self.__fix_interface()
 
     def __fix_interface(self):
         # Average the interface connection for set_sl_fc()
