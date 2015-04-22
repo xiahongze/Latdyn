@@ -747,11 +747,11 @@ class ABCM(object):
         fc = np.abs(fc)
         afc = fc[:self.na]; bfc = fc[self.na:]
         for i in range(self.na):
-            print "alpha: %s => %10.6f" % (self.akeys[i],afc[i])
             self.fc_dict['alpha'][self.akeys[i]] = afc[i]
+        print "alpha: ", self.fc_dict['alpha']
         for i in range(self.nb):
-            print "beta: %s => %10.6f" % (self.bkeys[i],bfc[i])
             self.fc_dict['beta'][self.bkeys[i]] = bfc[i]
+        print "beta: ", self.fc_dict['beta']
         self.set_fc(self.fc_dict)
         freq = np.sort(self.get_ph_disp())
         return ((freq-self.src_freq)**2).sum()/len(freq)
@@ -778,7 +778,7 @@ class ABCM(object):
         for vec in self.lvec: print >>logfile,"%8.4f"*3 % tuple(vec)
         print >>logfile,"Fitting routine returns: state (%s)" % res.success
         ###### Print out FCs ###########
-        print >>logfile,self.fc_dict
+        print >>logfile,"fc_dict =", self.fc_dict
         ###### End of Print out FCs #####
         print >>logfile,"With message: %s" % res.message
         print >>logfile,"The system is fitted to the frequencies below: crys = %s" % self.iskcrys
