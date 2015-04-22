@@ -717,29 +717,21 @@ class ABCM(object):
 
         # initialise x0
         x0 = np.array(fc_dict['alpha'].values()+fc_dict['beta'].values())
+        # add eps if needed
+        if self.ecalc != None:
+            x0 = np.hstack((x0,eps0))
+            self.m_ewald = self.ecalc.get_dyn(self.mass,kpts,crys=crys,mode="abcm")
+        
         self.set_fc(fc_dict)
 
         self.set_kpts(kpts,crys=crys)
         self.src_freq = np.sort(src_freq)
         assert len(self.src_freq) == self.nkpt
         if self.ecalc != None:
-            self.m_ewald = self.ecalc.get_dyn(self.mass,kpts,crys=crys)
             res = minimize(self.__fit_ewald,x0=x0,method=method)
-            a,b,eps = abs(res.x)
-            print "Fitting routine returns: state (%s)" % res.success
-            print "alpha = %10.6f; beta = %10.6f; eps = %10.6f" % (a,b,eps)
-            self.set_bulk_fc(a,b); self.__set_dyn(); self.eps = eps
-            print "Fitted frequencies:"
-            print np.sort(self.get_ph_disp())
         else:
             res = minimize(self.__fit_no_ewald,x0=x0,method=method)
-            # a,b = abs(res.x)
-            # print "Fitting routine returns: state (%s)" % res.success
-            # print "alpha = %10.6f; beta = %10.6f" % (a,b)
-            # self.set_bulk_fc(a,b)
-            # print "Fitted frequencies:"
-            # print np.sort(self.get_ph_disp())
-        # if not res.success: print res.message
+
         self.__log_fit(res,filename="log_fit.txt")
         del minimize
 
@@ -756,14 +748,23 @@ class ABCM(object):
         freq = np.sort(self.get_ph_disp())
         return ((freq-self.src_freq)**2).sum()/len(freq)
 
-    def __fit_ewald(self,abe0):
-        a0,b0,eps0 = abs(abe0)
-        print "alpha = %10.6f; beta = %10.6f; eps = %10.6f" % (a0,b0,eps0)
-        self.set_bulk_fc(a0,b0); self.__set_dyn()
-        dyn = eps0*self.m_ewald + self.get_dyn()
-        freq,evec = EigenSolver(dyn,fldata=None)
-        freq = np.sort(freq)
-        return ((freq-self.src_freq)**2).sum()/len(freq)
+    def __fit_ewald(self,x0):
+        x0 = abs(x0); fc = x0[:-1]; self.eps = x0[-1]
+        afc = fc[:self.na]; bfc = fc[self.na:]
+        for i in range(self.na):
+            self.fc_dict['alpha'][self.akeys[i]] = afc[i]
+        print "alpha: ", self.fc_dict['alpha']
+        for i in range(self.nb):
+            self.fc_dict['beta'][self.bkeys[i]] = bfc[i]
+        print "beta: ", self.fc_dict['beta']
+        print "eps = %10.5f" % self.eps
+        self.set_fc(self.fc_dict)
+        dyn0 = DynBuild(self.bas,self.bvec,self.fc,\
+                self.nn,self.label,self.kpts,self.N_ion,self.Mass,crys=self.iskcrys)
+        dyn = self.eps*self.m_ewald + dyn0
+        freq,evec = EigenSolver(dyn,fldata=None,herm=False)
+        self.freq = np.sort(freq)
+        return ((self.freq-self.src_freq)**2).sum()/len(freq)
 
     def __log_fit(self,res,filename="logfit.txt"):
         # Log the fitting results
@@ -779,6 +780,7 @@ class ABCM(object):
         print >>logfile,"Fitting routine returns: state (%s)" % res.success
         ###### Print out FCs ###########
         print >>logfile,"fc_dict =", self.fc_dict
+        print >>logfile,"eps = %10.5f" % self.eps
         ###### End of Print out FCs #####
         print >>logfile,"With message: %s" % res.message
         print >>logfile,"The system is fitted to the frequencies below: crys = %s" % self.iskcrys
