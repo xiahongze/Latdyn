@@ -19,7 +19,7 @@ Mon Sep  1 17:07:57 2014: Replace loops with mesh grid
 import numpy as np
 from numpy.linalg import inv
 from scipy.special import erfc
-from dyn_ewald import dyn_ewald
+from dyn_ewald import dyn_ewald,ewald_abcm
 M_PROTON         = 1.67262178E-27   # kg
 THZ              = 1.0E+12          # s^-1
 M_THZ            = 1.0/M_PROTON/THZ/THZ
@@ -168,7 +168,7 @@ class Ewald(object):
 
         return self.force
 
-    def get_dyn(self,mass,qvec,crys=True):
+    def get_dyn(self,mass,qvec,crys=True,mode="vffm"):
         """
         Calculate the equation of motion under harmonic approximation.
         Return the dynamical matrix at a specific q point.
@@ -179,10 +179,17 @@ class Ewald(object):
         crys: boolean (default:True)
               if true, qvec is in reciprocal lattice unit;
               otherwise, in unit of 2pi/alat
+        mode: str
+              either "vffm" or "abcm"
         """
         self.mass, qvec = map(np.array, (mass, qvec))
-        if self.mass.shape != self.cha.shape:
-            raise ValueError('shape(mass) does not match!')
+        if mode == "vffm":
+            if self.mass.shape != self.cha.shape:
+                raise ValueError('shape(mass) does not match!')
+        elif mode == "abcm":
+            pass
+        else:
+            raise ValueError("Wrong mode! Need to be either abcm or vffm")
         if qvec.shape == (3,): qvec = np.array([qvec])
         nks = len(qvec); N = len(self.mass)
         # self.qvec = np.array([np.dot(item,self.kvec) for item in qvec]) \
@@ -190,6 +197,10 @@ class Ewald(object):
             if crys else qvec*2.*np.pi
         self.dyn = np.zeros((nks,N*3,N*3),dtype=complex)
         for q in range(nks):
-            self.dyn[q] = dyn_ewald(self.bas,self.mass,self.cha,self.rmesh,\
+            if mode == "vffm":
+                self.dyn[q] = dyn_ewald(self.bas,self.mass,self.cha,self.rmesh,\
+                        self.kmesh,self.alp,self.v,self.qvec[q])*self.v*M_THZ
+            elif mode == "abcm":
+                self.dyn[q] = ewald_abcm(self.bas,self.mass,self.cha,self.rmesh,\
                         self.kmesh,self.alp,self.v,self.qvec[q])*self.v*M_THZ
         return self.dyn

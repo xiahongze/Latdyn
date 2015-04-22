@@ -430,7 +430,7 @@ class ABCM(object):
         self.dyn = DynBuild(self.bas,self.bvec,self.fc,\
                 self.nn,self.label,self.kpts,self.N_ion,self.Mass,crys=self.iskcrys)
         if self.ecalc != None:
-            self.dyn += self.eps*self.ecalc.get_dyn(self.mass,self.kpts,crys=self.iskcrys)
+            self.dyn += self.eps*self.ecalc.get_dyn(self.mass,self.kpts,crys=self.iskcrys,mode="abcm")
 
     def get_dyn(self):
         """
