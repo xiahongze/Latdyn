@@ -184,7 +184,7 @@ class ABCM(object):
         self.N_bc = np.sum(self.isBC)
         self.N_ion = self.N - self.N_bc
         # number of nn for ion and BC, 8 for tetrahedral
-        self.nn_cut = 2*self.N_bc
+        self.nn_cut = self.N_bc/self.N_ion*4
         assert len(mass) == self.N_ion
         a = []
         for i in range(self.N_ion):
