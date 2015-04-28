@@ -195,12 +195,18 @@ class Ewald(object):
         # self.qvec = np.array([np.dot(item,self.kvec) for item in qvec]) \
         self.qvec = np.dot(self.kvec,qvec.T).T \
             if crys else qvec*2.*np.pi
-        self.dyn = np.zeros((nks,N*3,N*3),dtype=complex)
-        for q in range(nks):
-            if mode == "vffm":
-                self.dyn[q] = dyn_ewald(self.bas,self.mass,self.cha,self.rmesh,\
-                        self.kmesh,self.alp,self.v,self.qvec[q])*self.v*M_THZ
-            elif mode == "abcm":
-                self.dyn[q] = ewald_abcm(self.bas,self.mass,self.cha,self.rmesh,\
-                        self.kmesh,self.alp,self.v,self.qvec[q])*self.v*M_THZ
+        # self.dyn = np.zeros((nks,N*3,N*3),dtype=complex)
+        # for q in range(nks):
+        #     if mode == "vffm":
+        #         self.dyn[q] = dyn_ewald(self.bas,self.mass,self.cha,self.rmesh,\
+        #                 self.kmesh,self.alp,self.v,self.qvec[q])*self.v*M_THZ
+        #     elif mode == "abcm":
+        #         self.dyn[q] = ewald_abcm(self.bas,self.mass,self.cha,self.rmesh,\
+        #                 self.kmesh,self.alp,self.v,self.qvec[q])*self.v*M_THZ
+        if mode == "vffm":
+            self.dyn = dyn_ewald(self.bas,self.mass,self.cha,self.rmesh,\
+                    self.kmesh,self.alp,self.v,self.qvec)*self.v*M_THZ
+        elif mode == "abcm":
+            self.dyn = ewald_abcm(self.bas,self.mass,self.cha,self.rmesh,\
+                    self.kmesh,self.alp,self.v,self.qvec)*self.v*M_THZ
         return self.dyn
