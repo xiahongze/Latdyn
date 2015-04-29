@@ -19,7 +19,7 @@ Mon Sep  1 17:07:57 2014: Replace loops with mesh grid
 import numpy as np
 from numpy.linalg import inv
 from scipy.special import erfc
-from dyn_ewald import dyn_ewald,ewald_abcm
+from dyn_ewald import vffm,abcm
 M_PROTON         = 1.67262178E-27   # kg
 THZ              = 1.0E+12          # s^-1
 M_THZ            = 1.0/M_PROTON/THZ/THZ
@@ -195,18 +195,10 @@ class Ewald(object):
         # self.qvec = np.array([np.dot(item,self.kvec) for item in qvec]) \
         self.qvec = np.dot(self.kvec,qvec.T).T \
             if crys else qvec*2.*np.pi
-        # self.dyn = np.zeros((nks,N*3,N*3),dtype=complex)
-        # for q in range(nks):
-        #     if mode == "vffm":
-        #         self.dyn[q] = dyn_ewald(self.bas,self.mass,self.cha,self.rmesh,\
-        #                 self.kmesh,self.alp,self.v,self.qvec[q])*self.v*M_THZ
-        #     elif mode == "abcm":
-        #         self.dyn[q] = ewald_abcm(self.bas,self.mass,self.cha,self.rmesh,\
-        #                 self.kmesh,self.alp,self.v,self.qvec[q])*self.v*M_THZ
         if mode == "vffm":
-            self.dyn = dyn_ewald(self.bas,self.mass,self.cha,self.rmesh,\
+            self.dyn = vffm(self.bas,self.mass,self.cha,self.rmesh,\
                     self.kmesh,self.alp,self.v,self.qvec)*self.v*M_THZ
         elif mode == "abcm":
-            self.dyn = ewald_abcm(self.bas,self.mass,self.cha,self.rmesh,\
+            self.dyn = abcm(self.bas,self.mass,self.cha,self.rmesh,\
                     self.kmesh,self.alp,self.v,self.qvec)*self.v*M_THZ
         return self.dyn

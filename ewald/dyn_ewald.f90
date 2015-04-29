@@ -5,7 +5,7 @@
 ! f2py -c -m dyn_ewald dyn_ewald.pyf dyn_ewald.f90
 ! Wed 22 Apr 2015 15:21:57 AEST: subroutine dyn_abcm is added to this file
 ! --------------------------------------------------------------------------------------------------
-    SUBROUTINE dyn_ewald(atoms,mass,charge,rmesh,kmesh,alpha,vol,qvec,dyn,N,nq,nr,nk)
+    SUBROUTINE vffm(atoms,mass,charge,rmesh,kmesh,alpha,vol,qvec,dyn,N,nq,nr,nk)
 
     IMPLICIT NONE
     ! ============constants========= !
@@ -25,10 +25,10 @@
     ! temporary variables
     real(8) :: r(3),r2,kr,k_q2,k2,k_q(3),k_qr,qr,q1,q2,expa2r2,masssqrt
     integer :: n0,n1,n2,a,b,nrr,nkk
-    
+
+    dyn = 0.0
+    !    
     DO n0 = 1,nq
-        !
-        dyn = 0.0
         !
         DO n1 = 1,N
             !
@@ -107,9 +107,9 @@
         !
     END DO
 
-    END SUBROUTINE dyn_ewald
+    END SUBROUTINE vffm
 
-    SUBROUTINE ewald_abcm(atoms,mass,charge,rmesh,kmesh,alpha,vol,qvec,dyn_abcm,N,NION,nq,nr,nk)
+    SUBROUTINE abcm(atoms,mass,charge,rmesh,kmesh,alpha,vol,qvec,dyn_abcm,N,NION,nq,nr,nk)
 
     IMPLICIT NONE
     ! ============constants========= !
@@ -254,4 +254,4 @@
         END IF
     END DO
     !
-    END SUBROUTINE ewald_abcm
+    END SUBROUTINE abcm

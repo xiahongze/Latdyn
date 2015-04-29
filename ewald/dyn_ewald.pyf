@@ -3,29 +3,29 @@
 
 python module dyn_ewald ! in 
     interface  ! in :dyn_ewald
-        subroutine dyn_ewald(atoms,mass,charge,rmesh,kmesh,alpha,vol,qvec,dyn,N,nr,nk) ! in :dyn_ewald:dyn_ewald.f
+        subroutine vffm(atoms,mass,charge,rmesh,kmesh,alpha,vol,qvec,dyn,N,nq,nr,nk) ! in :dyn_ewald:dyn_ewald.f
             integer intent(hide),depend(mass) :: N=len(mass)
             integer intent(hide),depend(rmesh) :: nr=shape(rmesh,0)
             integer intent(hide),depend(kmesh) :: nk=shape(kmesh,0)
-            real(8), intent(in) :: atoms(N,3),kmesh(nk,3),rmesh(nr,3)
+            integer intent(hide),depend(qvec) :: nq=shape(qvec,0)
+            real(8), intent(in) :: atoms(N,3),kmesh(nk,3),rmesh(nr,3),qvec(nq,3)
             real(8), dimension(N), intent(in) :: mass,charge
-            real(8), dimension(3), intent(in) :: qvec
             real(8), intent(in) :: alpha,vol
-            complex(8), dimension(N*3,N*3), intent(out) :: dyn
-        end subroutine dyn_ewald
+            complex(8), dimension(nq,N*3,N*3), intent(out) :: dyn
+        end subroutine vffm
         
-        subroutine ewald_abcm(atoms,mass,charge,rmesh,kmesh,alpha,vol,qvec,dyn_abcm,N,NION,nr,nk) ! in :dyn_ewald:dyn_ewald.f
+        subroutine abcm(atoms,mass,charge,rmesh,kmesh,alpha,vol,qvec,dyn_abcm,N,NION,nq,nr,nk) ! in :dyn_ewald:dyn_ewald.f
             integer intent(hide),depend(mass) :: NION=len(mass)
             integer intent(hide),depend(charge) :: N=len(charge)
             integer intent(hide),depend(rmesh) :: nr=shape(rmesh,0)
             integer intent(hide),depend(kmesh) :: nk=shape(kmesh,0)
-            real(8), intent(in) :: atoms(N,3),kmesh(nk,3),rmesh(nr,3)
+            integer intent(hide),depend(qvec) :: nq=shape(qvec,0)
+            real(8), intent(in) :: atoms(N,3),kmesh(nk,3),rmesh(nr,3),qvec(nq,3)
             real(8), dimension(NION), intent(in) :: mass
             real(8), dimension(N), intent(in) :: charge
-            real(8), dimension(3), intent(in) :: qvec
             real(8), intent(in) :: alpha,vol
-            complex(8), dimension(NION*3,NION*3), intent(out) :: dyn_abcm
-        end subroutine ewald_abcm
+            complex(8), dimension(nq,NION*3,NION*3), intent(out) :: dyn_abcm
+        end subroutine abcm
         
     end interface 
 end python module dyn_ewald
