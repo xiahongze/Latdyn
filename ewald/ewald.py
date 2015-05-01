@@ -192,9 +192,8 @@ class Ewald(object):
             raise ValueError("Wrong mode! Need to be either abcm or vffm")
         if qvec.shape == (3,): qvec = np.array([qvec])
         nks = len(qvec); N = len(self.mass)
-        # self.qvec = np.array([np.dot(item,self.kvec) for item in qvec]) \
-        self.qvec = np.dot(self.kvec,qvec.T).T \
-            if crys else qvec*2.*np.pi
+        # self.qvec = np.dot(self.kvec,qvec.T).T if crys else qvec*2.*np.pi # this is potentially wrong
+        self.qvec = qvec.dot(self.kvec) if crys else qvec*2.*np.pi
         if mode == "vffm":
             self.dyn = vffm(self.bas,self.mass,self.cha,self.rmesh,\
                     self.kmesh,self.alp,self.v,self.qvec)*self.v*M_THZ

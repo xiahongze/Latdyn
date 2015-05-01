@@ -122,7 +122,8 @@ def DynBuild(basis,bvec,fc,nn,label,kpts,Ni,Mass,crys=True):
     dyn = np.zeros((nks,Ni*3,Ni*3),dtype=complex)
     M_1 = inv(Mass)
     # convert kpts to Cartesian coordinates if needed
-    kpts = np.dot(bvec,kpts.T).T*2.*np.pi if crys else kpts*2.*np.pi
+    # kpts = np.dot(bvec,kpts.T).T*2.*np.pi if crys else kpts*2.*np.pi # potentially wrong
+    kpts = kpts.dot(bvec)*2.*np.pi if crys else kpts*2.*np.pi
     for q in range(nks):
         dyn1 = np.zeros((N*3,N*3),dtype=complex) # temperoary
         for i in range(N):
@@ -242,7 +243,7 @@ class ABCM(object):
         X,Y,Z = scope
         x,y,z = np.mgrid[-X:X+1, -Y:Y+1, -Z:Z+1]
         x = x.reshape(-1); y = y.reshape(-1); z = z.reshape(-1)
-        rgrid = np.dot(self.lvec,(x,y,z)).T
+        xyz = np.asarray((x,y,z)).T; rgrid = xyz.dot(self.lvec) # fix this hidden bug
         allatoms = []
         for item in self.bas:
             allatoms = item+rgrid if allatoms == [] \
@@ -413,7 +414,8 @@ class ABCM(object):
         else:
             print "Wrong input for k-conversion!"
             pass
-        self.kpts = np.dot(convec,self.kpts.T).T
+        # self.kpts = np.dot(convec,self.kpts.T).T # this is potentially wrong
+        self.kpts = self.kpts.dot(convec)
         # for i in range(self.nkpt):
         #     self.kpts[i] = np.dot(self.kpts[i],convec)
         self.iskcrys = iskcrys
