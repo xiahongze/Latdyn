@@ -360,7 +360,7 @@ class ABCM(object):
         # self.__fix_interface()
 
     def __fix_interface(self):
-        # Average the interface connection for set_sl_fc()
+        # Average the interface connection for set_fc()
         for i in range(self.N):
             print "Checking atom ",i
             for j in range(len(self.nn[i])):
@@ -374,6 +374,7 @@ class ABCM(object):
                             print self.symbol[i]," with ", self.nnsymb[i][j], " is fine"
                         else:
                             print self.symbol[i]," with ", self.nnsymb[i][j], " is not fine"
+                            print self.fc[i][j]-self.fc[offsiteLabel][k].T
                         tmp *= 0.5
                         self.fc[i][j] = tmp
                         self.fc[offsiteLabel][k] = tmp.T

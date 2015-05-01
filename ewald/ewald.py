@@ -109,10 +109,11 @@ class Ewald(object):
         X,Y,Z = grid
         x,y,z = np.mgrid[-X:X+1, -Y:Y+1, -Z:Z+1]
         x = x.reshape(-1); y = y.reshape(-1); z = z.reshape(-1)
+        xyz = np.asarray((x,y,z)).T
         if choice == 1:
-            self.rmesh = np.dot(self.lvec,(x,y,z)).T
+            self.rmesh = xyz.dot(self.lvec)
         else:
-            self.kmesh = np.dot(self.kvec,(x,y,z)).T
+            self.kmesh = xyz.dot(self.kvec)
 
     def set_kmesh(self,kgrid):
         self._gen_grid(kgrid,2)

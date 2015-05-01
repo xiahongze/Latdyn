@@ -250,7 +250,7 @@ class VFFM(object):
                 ([a2]*n2,bb,self.nn[i][n1::],self.bas[i])
             self.fc[i] = np.vstack((self.fc[i],tmp))
 
-    def set_sl_fc(self,fc_dict):
+    def set_fc(self,fc_dict):
         '''
         fc_dict involves alpha and beta for different interactions between atoms.
         Make sure one now exactly how many interactions are involved by looking
@@ -323,15 +323,20 @@ class VFFM(object):
         self.__fix_interface()
 
     def __fix_interface(self):
-        # Average the interface connection for set_sl_fc()
+        # Average the interface connection for set_fc()
         for i in range(self.N):
+            print "Checking atom ",i
             for j in range(len(self.nn[i])):
                 bond0 = self.bas[i] - self.nn[i][j]
                 offsiteLabel = self.label[i][j]
                 for k in range(len(self.nn[offsiteLabel])):
                     bond1 = self.bas[offsiteLabel] - self.nn[offsiteLabel][k]
-                    if norm(np.cross(bond0,bond1))<1e-3: # the same bond
+                    if np.allclose(bond0,-bond1): # the same bond
                         tmp = self.fc[i][j] + self.fc[offsiteLabel][k].T
+                        # if np.allclose(self.fc[i][j],self.fc[offsiteLabel][k].T):
+                        #     print self.symbol[i]," with ", self.nnsymb[i][j], " is fine"
+                        # else:
+                        #     print self.symbol[i]," with ", self.nnsymb[i][j], " is not fine"
                         tmp *= 0.5
                         self.fc[i][j] = tmp
                         self.fc[offsiteLabel][k] = tmp.T
