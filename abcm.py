@@ -731,7 +731,8 @@ class ABCM(object):
         self.src_freq = np.sort(src_freq)
         assert len(self.src_freq) == self.nkpt
         if self.ecalc != None:
-            res = minimize(self.__fit_ewald,x0=x0,method=method)
+            # res = minimize(self.__fit_ewald,x0=x0,method=method)
+            res = minimize(self.__fit_ewald,x0=x0,method=method,bounds=((0,100),(0,100),(0,100),(0,100),(0,100),(0,5)))
         else:
             res = minimize(self.__fit_no_ewald,x0=x0,method=method)
 
@@ -752,8 +753,14 @@ class ABCM(object):
         return ((freq-self.src_freq)**2).sum()/len(freq)
 
     def __fit_ewald(self,x0):
-        x0 = abs(x0); fc = x0[:-1]; self.eps = x0[-1]
+        # x0 = abs(x0)
+        fc = x0[:-1]; self.eps = x0[-1]
         afc = fc[:self.na]; bfc = fc[self.na:]
+        # swap FC if necessary
+        # if afc[1]<afc[2]:
+        #     tmp=afc[1]; afc[1]=afc[2]; afc[2]=tmp
+        # if bfc[0]<bfc[1]:
+        #     tmp=bfc[0]; bfc[0]=bfc[1]; bfc[1]=bfc[0]
         for i in range(self.na):
             self.fc_dict['alpha'][self.akeys[i]] = afc[i]
         print "alpha: ", self.fc_dict['alpha']

@@ -81,7 +81,7 @@
                     kr = DOT_PRODUCT(kmesh(nkk,:),r)
                     k_q = kmesh(nkk,:)+qvec(n0,:)
                     ! examine the qvec so that it is not too small
-                    IF (SQRT(DOT_PRODUCT(k_q,k_q)) .LT. 1.0D-6) k_q = k_q+1.0D-5
+                    IF (SQRT(DOT_PRODUCT(k_q,k_q)) .LT. 1.0D-9) k_q = k_q+1.0D-6
                     k2 = DOT_PRODUCT(kmesh(nkk,:),kmesh(nkk,:))
                     k_q2 = DOT_PRODUCT(k_q,k_q)
                     k_qr = DOT_PRODUCT(k_q,r)
@@ -94,7 +94,7 @@
                     !
                     fc = fc*q1*q2*4.*pi/k_q2*EXP(-k_q2/4./alpha**2)/vol
                     dyn(n0,3*n1-2:3*n1,3*n2-2:3*n2) = dyn(n0,3*n1-2:3*n1,3*n2-2:3*n2) + fc*EXP(j*kr)*masssqrt
-                    IF (k2 .GT. 1.0D-4) THEN
+                    IF (k2 .GT. 1.0D-6) THEN
                         fc1 = fc1*q1*q2*4.*pi/k2*EXP(-k2/4./alpha**2)/vol
                         dyn(n0,3*n1-2:3*n1,3*n1-2:3*n1) = dyn(n0,3*n1-2:3*n1,3*n1-2:3*n1) - fc1/mass(n1)*EXP(j*kr)
                     END IF
@@ -203,7 +203,7 @@
                     kr = DOT_PRODUCT(kmesh(nkk,:),r)
                     k_q = kmesh(nkk,:)+qvec(n0,:)
                     ! examine the qvec so that it is not too small
-                    IF (SQRT(DOT_PRODUCT(k_q,k_q)) .LT. 1.0D-6) k_q = k_q+1.0D-5
+                    IF (SQRT(DOT_PRODUCT(k_q,k_q)) .LT. 1.0D-9) k_q = k_q+1.0D-6
                     k2 = DOT_PRODUCT(kmesh(nkk,:),kmesh(nkk,:))
                     k_q2 = DOT_PRODUCT(k_q,k_q)
                     k_qr = DOT_PRODUCT(k_q,r)
@@ -216,7 +216,7 @@
                     !
                     fc = fc*q1*q2*4.*pi/k_q2*EXP(-k_q2/4./alpha**2)/vol
                     dyn(3*n1-2:3*n1,3*n2-2:3*n2) = dyn(3*n1-2:3*n1,3*n2-2:3*n2) + fc*EXP(j*kr)
-                    IF (k2 .GT. 1.0D-4) THEN
+                    IF (k2 .GT. 1.0D-6) THEN
                         fc1 = fc1*q1*q2*4.*pi/k2*EXP(-k2/4./alpha**2)/vol
                         dyn(3*n1-2:3*n1,3*n1-2:3*n1) = dyn(3*n1-2:3*n1,3*n1-2:3*n1) - fc1*EXP(j*kr)
                     END IF
