@@ -18,6 +18,7 @@ def EigenSolver(m,fldata="freq_mode_dyn.pckl",herm=True):
         mask = (w2[q]<-1e-4); pm = mask*-1; pm[mask==False] = 1
         if mask.sum() > 0:
             print "Warning: imaginary frequency occurs at k[%d]" % q
+    mask = (w2<-1e-4); pm = mask*-1; pm[mask==False] = 1
     freq = np.sqrt(np.abs(w2))/TPI*pm
     if fldata:
         pickle.dump((freq,evec,m),open(fldata,"wb"))

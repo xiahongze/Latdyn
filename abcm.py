@@ -20,84 +20,8 @@ from numpy.linalg import inv,eigh,eig,norm,pinv
 from constants import M_THZ,TPI,KB,THZ_TO_J
 from ewald import Ewald
 from commonfunc import EigenSolver,MonkhorstPack,tetra_dos
+from itertools import permutations
 np.set_printoptions(precision=3,linewidth=200,suppress=True)
-
-def ConstructFC(alpha,beta,nn,atom,nnsym,isBC):
-    """
-    Construct the force constant tensors according to nearest neighbours.
-    It assumes single type of bonding for one atom. But one could manually
-    tune them by setting either alpha or beta to zero.
-    alpha: array len(nn)
-        bond-stretching force constant
-    beta: array beta.shape=(len(nn),len(nn))
-        bond-bending force constant
-    nn: array of shape (N,3)
-        all nearest neighbours in unit of lattice constant
-    nnsym: string (N,)
-        labels of nn
-    isBC: boolean
-        whether atom is BC
-    return: ndarray of shape (N,3,3)
-        tensors for all nearest neighbours
-    """
-    N = len(nn)
-    assert len(alpha) == N
-    assert len(beta) == N
-    assert len(beta[0]) == N
-    alpha,beta = map(np.array,(alpha,beta))
-
-    Alpha = np.zeros((N,3,3))
-    Beta = np.zeros((N,3,3))
-    one = np.ones((3,3))
-
-    for n1 in range(N):
-        dvec = (atom-nn[n1]); d = norm(dvec)
-        if not (isBC and nnsym[n1] == 'BC'):
-            tmp = dvec*one
-            Alpha[n1] = -np.multiply(tmp,tmp.T)*alpha[n1]/d/d
-        
-        for n2 in range(N):
-            if (n1 != n2):
-                # if atom is an ion
-                if not (isBC):
-                    dvec1 = (atom-nn[n1]); d1 = norm(dvec1)
-                    dvec2 = (atom-nn[n2]); d2 = norm(dvec2)
-                    tf0 = abs(d1-d2)<1e-4 # bond-lengths are equal
-                    tf1 = (nnsym[n1] == 'BC' and nnsym[n2] == 'BC' and tf0)
-                    if tf1:
-                        # continue
-                        tmp1 = (dvec1+dvec2)*one; tmp2 = -dvec2*one
-                        Beta[n1] += np.multiply(tmp1.T,tmp2)*beta[n1,n2]/d1/d2
-                        continue # skip the rest in this loop
-                else: # if atom is BC
-                    if nnsym[n1] == 'BC':
-                        # if atom is a BC and nnsym[n2] is an ion
-                        dvec1 = atom-nn[n2]; d1 = norm(dvec1) # BC-ION
-                        dvec2 = nn[n1]-nn[n2]; d2 = norm(dvec2) # BC-ION
-                        tf0 = abs(d1-d2)<1e-4 # bond-lengths are equal
-                        tf2 = (nnsym[n2] != 'BC' and tf0)
-                        if tf2:
-                            # continue
-                            tmp1 = one*dvec1; tmp2 = (one*dvec2)
-                            Beta[n1] = np.multiply(tmp1.T,tmp2)*beta[n1,n2]/d1/d2 # I added T here
-                            # print Beta[n1]
-                            continue
-                    else:
-                        # if atom is a BC and nnsym[n1] is an ion
-                        dvec1 = nn[n1]-atom; d1 = norm(dvec1)
-                        dvec2 = nn[n1]-nn[n2]; d2 = norm(dvec2)
-                        tf0 = abs(d1-d2)<1e-4 # bond-lengths are equal
-                        tf3 = (nnsym[n2] == 'BC' and tf0)
-                        if tf3: # if nnsym[n1] is an ion
-                            # continue
-                            tmp1 = (dvec1+dvec2)*one; tmp2 = -dvec2*one
-                            Beta[n1] += np.multiply(tmp1,tmp2.T)*beta[n1,n2]/d1/d2
-                            continue
-
-    Alpha *= 8
-    Beta *= 2
-
-    return Alpha+Beta
 
 def DynBuild(basis,bvec,fc,nn,label,kpts,Ni,Mass,crys=True):
     """
@@ -306,60 +230,164 @@ class ABCM(object):
         self.avalues = fc_dict["alpha"].values()
         self.bvalues = fc_dict["beta"].values()
         self.fc_dict = fc_dict
-        
+
         for i in range(self.N):
             onsite = self.symbol[i]
             offsite = self.nnsymb[i]
             nos = len(offsite)
-            alp = np.zeros(nos)
-            bet = np.zeros((nos,nos))
+            # initialise FC tensors
+            FC = np.zeros((nos,3,3))
             for j in range(nos):
                 key1 = onsite+"-"+offsite[j]
                 key2 = offsite[j]+"-"+onsite
-                isbcbc = (onsite == "BC" and offsite[j] == "BC")
+                # isbcbc = (onsite == "BC" and offsite[j] == "BC")
+                # isionbc = ((onsite == "BC" and offsite[j] != "BC") and (onsite != "BC" and offsite[j] == "BC"))
                 if a_dict.has_key(key1):
-                    key = key1
+                    alp = a_dict[key1]; FC[j] += self.get_centre_fc(alp,i,j)
                 elif a_dict.has_key(key2):
-                    key = key2
-                elif isbcbc:
-                    pass
-                else:
-                    raise ValueError("Missing interaction: "+key1)
-                alp[j] = 0.0 if isbcbc else a_dict[key]
-                tmp = []
+                    alp = a_dict[key2]; FC[j] += self.get_centre_fc(alp,i,j)
+                # elif isbcbc or isionbc:
+                #     pass
+                # else:
+                #     raise ValueError("Missing interaction: "+key1)
+                # look for bond-bending (2 BCs) and cross-stretching (1 BC)
                 for k in range(nos):
                     if k != j:
-                        mask = np.array([onsite,offsite[j],offsite[k]])
-                        nbc = np.sum((mask=="BC"))
-                        if nbc!=2: # you need to have two BCs
-                            tmp.append(0.0)
-                            continue
-                        if onsite != "BC":
-                            key3 = onsite+"-"+offsite[k]
-                            key4 = offsite[k]+"-"+onsite
+                        inline = (norm(np.cross(self.bas[i]-self.nn[i][j], self.bas[i]-self.nn[i][k]))<1e-6)
+                        if onsite != "BC" and offsite[j]!="BC" and offsite[k]=="BC" and inline: # cross-stretching
+                            key1 = onsite+"-"+"BC"+"-"+offsite[j]
+                            key2 = offsite[j]+"-"+"BC"+"-"+onsite
+                            if a_dict.has_key(key1):
+                                alp = a_dict[key1]; FC[j] += self.get_noncentre_fc(alp,i,j,k,1)
+                            elif a_dict.has_key(key2):
+                                alp = a_dict[key2]; FC[j] += self.get_noncentre_fc(alp,i,j,k,1)
+                            # else:
+                            #     raise ValueError("Missing interaction: "+key1)
+                        elif onsite != "BC" and offsite[j]=="BC" and offsite[k]!="BC" and inline: # cross-stretching
+                            key1 = onsite+"-"+"BC"+"-"+offsite[k]
+                            key2 = offsite[k]+"-"+"BC"+"-"+onsite
+                            if a_dict.has_key(key1):
+                                alp = a_dict[key1]; FC[j] += self.get_noncentre_fc(alp,i,j,k,2)
+                            elif a_dict.has_key(key2):
+                                alp = a_dict[key2]; FC[j] += self.get_noncentre_fc(alp,i,j,k,2)
+                            # else:
+                            #     raise ValueError("Missing interaction: "+key1)
+                        elif onsite == "BC" and offsite[j]!="BC" and offsite[k]!="BC" and inline: #cross-stretching
+                            key1 = offsite[j]+"-"+"BC"+"-"+offsite[k]
+                            key2 = offsite[k]+"-"+"BC"+"-"+offsite[j]
+                            if a_dict.has_key(key1):
+                                alp = a_dict[key1]; FC[j] += self.get_noncentre_fc(alp,i,j,k,3)
+                            elif a_dict.has_key(key2):
+                                alp = a_dict[key2]; FC[j] += self.get_noncentre_fc(alp,i,j,k,3)
+                            # else:
+                            #     raise ValueError("Missing interaction: "+key1)
+                        elif onsite != "BC" and offsite[j]=="BC" and offsite[k]=="BC": # BC-bond-bending
+                            r1 = self.bas[i]-self.nn[i][j]; r2 = self.bas[i]-self.nn[i][k]
+                            if np.allclose(norm(r1),norm(r2)): # same bond length
+                                key1 = "BC"+"-"+onsite
+                                key2 = onsite+"-"+"BC"
+                                if b_dict.has_key(key1):
+                                    bet = b_dict[key1]; FC[j] += self.get_bending_fc(bet,i,j,k,1)
+                                elif b_dict.has_key(key2):
+                                    bet = b_dict[key2]; FC[j] += self.get_bending_fc(bet,i,j,k,1)
+                                # else:
+                                #     raise ValueError("Missing interaction: "+key1)
+                        elif onsite == "BC" and offsite[j]!="BC" and offsite[k]=="BC": # BC-bond-bending
+                            r1 = self.nn[i][j]-self.bas[i]; r2 = self.nn[i][j]-self.nn[i][k]
+                            if np.allclose(norm(r1),norm(r2)): # same bond length
+                                key1 = "BC"+"-"+offsite[j]
+                                key2 = offsite[j]+"-"+"BC"
+                                if b_dict.has_key(key1):
+                                    bet = b_dict[key1]; FC[j] += self.get_bending_fc(bet,i,j,k,2)
+                                elif b_dict.has_key(key2):
+                                    bet = b_dict[key2]; FC[j] += self.get_bending_fc(bet,i,j,k,2)
+                                # else:
+                                #     raise ValueError("Missing interaction: "+key1)
+                        elif onsite == "BC" and offsite[j]=="BC" and offsite[k]!="BC": # BC-bond-bending
+                            r1 = self.nn[i][k]-self.bas[i]; r2 = self.nn[i][k]-self.nn[i][j]
+                            if np.allclose(norm(r1),norm(r2)): # same bond length
+                                key1 = "BC"+"-"+offsite[k]
+                                key2 = offsite[k]+"-"+"BC"
+                                if b_dict.has_key(key1):
+                                    bet = b_dict[key1]; FC[j] += self.get_bending_fc(bet,i,j,k,3)
+                                elif b_dict.has_key(key2):
+                                    bet = b_dict[key2]; FC[j] += self.get_bending_fc(bet,i,j,k,3)
+                                # else:
+                                #     raise ValueError("Missing interaction: "+key1)
+                        elif onsite!="BC" and offsite[j]!="BC" and offsite[k]!="BC": # ion-bod-bending
+                            r1 = self.bas[i]-self.nn[i][j]; r2 = self.bas[i]-self.nn[i][k]
+                            if np.allclose(norm(r1),norm(r2)): # same bond length
+                                keys = list(permutations([onsite,offsite[j],offsite[k]]))
+                                for item in keys:
+                                    key = item[0]+"-"+item[1]+"-"+item[2]
+                                    if b_dict.has_key(key):
+                                        bet = b_dict[key]; FC[j] += self.get_bending_fc(bet,i,j,k,1)
+                                        break
                         else:
-                            key3 = offsite[j]+"-"+offsite[k]
-                            key4 = offsite[k]+"-"+offsite[j]
-                        # print keys
-                        if b_dict.has_key(key3):
-                            key_b = key3
-                        elif b_dict.has_key(key4):
-                            key_b = key4
-                        else:
-                            raise ValueError("Missing interaction: "+key3)
-                        tmp.append(b_dict[key_b])
-                    #
-                    else: # if k == j
-                        tmp.append(0.0)
+                            pass
                 #
-                # print tmp
-                bet[j] = tmp
             #
-            self.fc.append(ConstructFC \
-                (alp,bet,self.nn[i],self.bas[i],self.nnsymb[i],self.isBC[i]))
-        # self.__fix_interface()
+            self.fc.append(FC)
+        # self.fix_interface()
 
-    def __fix_interface(self):
+    def get_centre_fc(self,a,i,j):
+        """
+        generate ion-ion centre force constant tensor
+        a: float, force constant
+        i: integer, onsite ion index
+        j: integer, offsite ion index
+        """
+        dvec = (self.bas[i]-self.nn[i][j]); d = norm(dvec)
+        one = np.ones((3,3)); tmp = dvec*one
+        return -np.multiply(tmp,tmp.T)*a/d/d*8
+
+    def get_phi1(self,s,i,j):
+        """first derivative divided by distant"""
+        dvec = (self.bas[i]-self.nn[i][j]); d = norm(dvec)
+        one = np.ones((3,3)); tmp = dvec*one
+        return (np.multiply(tmp,tmp.T)/d/d-np.identity(3))*s*8
+
+    def get_bending_fc(self,b,i,j,k,ionsite):
+        one = np.ones((3,3))
+        if ionsite == 1: # i sits an ion
+            dvec1 = (self.bas[i]-self.nn[i][j]); d1 = norm(dvec1)
+            dvec2 = (self.bas[i]-self.nn[i][k]); d2 = norm(dvec2)
+            tmp1 = (dvec1+dvec2)*one; tmp2 = -dvec2*one
+            return 2*np.multiply(tmp1.T,tmp2)*b/d1/d2
+        elif ionsite == 2: # j sits an ion
+            dvec1 = self.nn[i][j]-self.bas[i]; d1 = norm(dvec1)
+            dvec2 = self.nn[i][j]-self.nn[i][k]; d2 = norm(dvec2)
+            tmp1 = (dvec1+dvec2)*one; tmp2 = -dvec2*one
+            return 2*np.multiply(tmp1,tmp2.T)*b/d1/d2
+        elif ionsite == 3: # k sits an ion
+            dvec1 = self.bas[i]-self.nn[i][k]; d1 = norm(dvec1) # BC-ION
+            dvec2 = self.nn[i][j]-self.nn[i][k]; d2 = norm(dvec2) # BC-ION
+            tmp1 = one*dvec1; tmp2 = (one*dvec2)
+            return 2*np.multiply(tmp1.T,tmp2)*b/d1/d2 # I added T here
+        else:
+            return 0
+
+    def get_noncentre_fc(self,a,i,j,k,bcsite):
+        one = np.ones((3,3))
+        if bcsite == 1: # k sits a BC
+            dvec1 = (self.bas[i]-self.nn[i][k]); d1 = norm(dvec1)
+            dvec2 = (self.nn[i][j]-self.nn[i][k]); d2 = norm(dvec2)
+            tmp1 = one*dvec1; tmp2 = (one*dvec2)
+            return 4*tmp1*tmp2.T*a/d1/d2
+        if bcsite == 2: # j sits a BC
+            dvec1 = (self.bas[i]-self.nn[i][j]); d1 = norm(dvec1)
+            dvec2 = (self.nn[i][k]-self.nn[i][j]); d2 = norm(dvec2)
+            tmp1 = one*dvec1; tmp2 = (one*dvec2)
+            return -4*tmp1*tmp2.T*a/d1/d2
+        if bcsite == 3: # i sits a BC
+            dvec1 = (self.bas[i]-self.nn[i][j]); d1 = norm(dvec1)
+            dvec2 = (self.bas[i]-self.nn[i][k]); d2 = norm(dvec2)
+            tmp1 = one*dvec1; tmp2 = (one*dvec2)
+            return -4*tmp1.T*tmp2*a/d1/d2
+        else:
+            return 0
+
+    def fix_interface(self):
         # Average the interface connection for set_fc()
         for i in range(self.N):
             print "Checking atom ",i
@@ -699,7 +727,7 @@ class ABCM(object):
         plt.savefig("therm_cond_K_"+x+y+".pdf",dpi=300)
         del plt
 
-    def fit_freq(self,src_freq,kpts,fc_dict,eps0=1.,crys=True,method='Powell'):
+    def fit_freq(self,src_freq,kpts,fc_dict,eps0=1.,crys=True,method='Powell',maxiter=100):
         """
         Fit the model to a given dispersion based on frequencies.
         src_freq: ndarray
@@ -731,9 +759,8 @@ class ABCM(object):
         self.src_freq = np.sort(src_freq)
         assert len(self.src_freq) == self.nkpt
         if self.ecalc != None:
-            # res = minimize(self.__fit_ewald,x0=x0,method=method)
+            res = minimize(self.__fit_ewald,x0=x0,method=method,options={"maxiter":maxiter})
             # res = minimize(self.__fit_ewald,x0=x0,method=method,bounds=((0.01,100),(0.01,100),(0.01,100),(0.01,100),(0.01,100),(0,5)))
-            res = minimize(self.__fit_ewald,x0=x0,method=method,bounds=((0.01,100),(0.01,100),(0.01,100),(0,20)))
         else:
             res = minimize(self.__fit_no_ewald,x0=x0,method=method)
 
