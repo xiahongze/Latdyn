@@ -79,7 +79,7 @@ def ConstructFC(alpha,beta,nn,atom,nnsym,isBC):
                         if tf2:
                             # continue
                             tmp1 = one*dvec1; tmp2 = (one*dvec2)
-                            Beta[n1] = np.multiply(tmp1,tmp2)*beta[n1,n2]/d1/d2
+                            Beta[n1] = np.multiply(tmp1.T,tmp2)*beta[n1,n2]/d1/d2 # I added T here
                             # print Beta[n1]
                             continue
                     else:
@@ -732,7 +732,8 @@ class ABCM(object):
         assert len(self.src_freq) == self.nkpt
         if self.ecalc != None:
             # res = minimize(self.__fit_ewald,x0=x0,method=method)
-            res = minimize(self.__fit_ewald,x0=x0,method=method,bounds=((0,100),(0,100),(0,100),(0,100),(0,100),(0,5)))
+            # res = minimize(self.__fit_ewald,x0=x0,method=method,bounds=((0.01,100),(0.01,100),(0.01,100),(0.01,100),(0.01,100),(0,5)))
+            res = minimize(self.__fit_ewald,x0=x0,method=method,bounds=((0.01,100),(0.01,100),(0.01,100),(0,20)))
         else:
             res = minimize(self.__fit_no_ewald,x0=x0,method=method)
 
@@ -790,7 +791,8 @@ class ABCM(object):
         print >>logfile,"Fitting routine returns: state (%s)" % res.success
         ###### Print out FCs ###########
         print >>logfile,"fc_dict =", self.fc_dict
-        print >>logfile,"eps = %10.5f" % self.eps
+        if  self.ecalc != None:
+            print >>logfile,"eps = %10.5f" % self.eps
         ###### End of Print out FCs #####
         print >>logfile,"With message: %s" % res.message
         print >>logfile,"The system is fitted to the frequencies below: crys = %s" % self.iskcrys
