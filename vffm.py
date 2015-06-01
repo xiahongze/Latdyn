@@ -528,17 +528,38 @@ class VFFM(object):
         """Reload previous calculation"""
         return pickle.load(open(filename))
 
-    def save_ph_csv(self):
+    def save_ph_csv(self,phunit="THz",kpt="cart"):
         """
         Save the phonon dispersions and k-points to two CSV files.
-        frequency in unit THz; kpts in crystal coordinates
+        phunit: frequency unit, "THz", "cm-1", "thz", "mev", "cm", "meV"
+        kpt: kpts unit, "cart" or "crys"
         """
         if self.kpts == [] or self.dyn == []:
-            print "You have nothing to save!"
-            pass
-        np.savetxt("phfreq.csv", np.sort(self.freq), delimiter=",",fmt="%10.5f")
-        self.k_conv("crys")
-        np.savetxt("phkpath.csv", self.kpts, delimiter=",",fmt="%8.3f")
+            exit("You have nothing to save!")
+        if phunit.lower() == "thz":
+            freq = np.sort(self.freq)
+        elif phunit.lower() == "mev":
+            freq = np.sort(self.freq)
+        elif phunit.lower() == "cm-1" or phunit.lower() == "cm":
+            freq = np.sort(self.freq)*33.3333
+        else:
+            exit(phunit+" is not supported!")
+        kp = self.gen_kpath()
+        dt = np.hstack((kp.reshape(-1,1),freq))
+        np.savetxt("phfreq.csv", dt, delimiter=",",fmt="%10.5f",
+        header="Phonon frequency in unit of "+phunit)
+        self.k_conv(kpt)
+        np.savetxt("phkpath.csv", self.kpts, delimiter=",",fmt="%8.3f",
+        header="k-path in unit of "+kpt)
+
+    def gen_kpath(self):
+        self.k_conv("cart")
+        tmp1 = self.kpts[0:-1]-self.kpts[1::]
+        tmp2 = norm(tmp1,axis=1)
+        tmp3 = np.zeros(len(tmp2)+1)
+        for i in range(len(tmp2)):
+            tmp3[i+1] =tmp3[i]+tmp2[i]
+        return tmp3
 
     def get_debye(self,temp,alat=None,kgrid=(4,4,4),koff=(1,1,1)):
         """
