@@ -17,9 +17,10 @@ Ref: http://journals.aps.org/prb/abstract/10.1103/PhysRevB.84.155204
 import pickle
 import numpy as np
 from numpy.linalg import inv,eigh,eig,norm
-from constants import M_THZ,TPI,KB,THZ_TO_J
+from constants import M_THZ,TPI,KB,THZ_TO_J,THZ_TO_CM,THZ_TO_MEV
 from .ewald import Ewald
 from commonfunc import EigenSolver,MonkhorstPack,tetra_dos
+from sys import exit
 
 def ConstructFC(alpha,beta,nn,atom):
     """
@@ -185,22 +186,26 @@ class VFFM(object):
         x,y,z = np.mgrid[-X:X+1, -Y:Y+1, -Z:Z+1]
         x = x.reshape(-1); y = y.reshape(-1); z = z.reshape(-1)
         xyz = np.asarray((x,y,z)).T; rgrid = xyz.dot(self.lvec) # fix this hidden bug
-        allatoms = []
-        for item in self.bas:
-            allatoms = item+rgrid if allatoms == [] \
-                else np.vstack((allatoms,item+rgrid))
+        # allatoms = []
+        # for item in self.bas:
+        #     allatoms = item+rgrid if allatoms == [] \
+        #         else np.vstack((allatoms,item+rgrid))
+        # the most efficient way to get allatoms
+        allatoms = (self.bas.reshape(-1,1,3)+rgrid).reshape(-1,3)
         self.label = []; self.nn = []; self.nndist = []
         for i in range(self.N):
-            dist = np.array([norm(self.bas[i]-item) for item in allatoms])
+            dist = norm(self.bas[i]-allatoms,axis=1)
             nn_ind = dist.argsort()[1:nmax] # consider the first nmax n.n.
             if showDist: print dist[nn_ind]
             if dist2 == None:
-                first_nn_ind = [item for item in nn_ind if \
-                        abs(dist[item] - dist[nn_ind[0]])<1e-4]
+                # first_nn_ind = [item for item in nn_ind if \
+                #         abs(dist[item] - dist[nn_ind[0]])<1e-4]
+                mask = np.abs(dist[nn_ind]-dist[nn_ind[0]])<1e-4
+                first_nn_ind = nn_ind[mask]
             else:
                 # if dist2 exisits, count till that distance
-                first_nn_ind = [item for item in nn_ind if \
-                        dist[item]<=dist2]
+                first_nn_ind = nn_ind[dist[nn_ind]<=dist2]
+
             label = np.array(first_nn_ind)/len(rgrid)
             nn = allatoms[first_nn_ind]
             nndist = dist[first_nn_ind]
@@ -539,9 +544,9 @@ class VFFM(object):
         if phunit.lower() == "thz":
             freq = np.sort(self.freq)
         elif phunit.lower() == "mev":
-            freq = np.sort(self.freq)
+            freq = np.sort(self.freq)*THZ_TO_MEV
         elif phunit.lower() == "cm-1" or phunit.lower() == "cm":
-            freq = np.sort(self.freq)*33.3333
+            freq = np.sort(self.freq)*THZ_TO_CM
         else:
             exit(phunit+" is not supported!")
         kp = self.gen_kpath()

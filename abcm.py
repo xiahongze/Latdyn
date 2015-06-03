@@ -17,7 +17,7 @@ Ref:
 import pickle
 import numpy as np
 from numpy.linalg import inv,eigh,eig,norm,pinv
-from constants import M_THZ,TPI,KB,THZ_TO_J
+from constants import M_THZ,TPI,KB,THZ_TO_J,THZ_TO_CM,THZ_TO_MEV
 from ewald import Ewald
 from commonfunc import EigenSolver,MonkhorstPack,tetra_dos
 from itertools import permutations
@@ -47,7 +47,6 @@ def DynBuild(basis,bvec,fc,nn,label,kpts,Ni,Mass,crys=True):
     dyn = np.zeros((nks,Ni*3,Ni*3),dtype=complex)
     M_1 = inv(Mass)
     # convert kpts to Cartesian coordinates if needed
-    # kpts = np.dot(bvec,kpts.T).T*2.*np.pi if crys else kpts*2.*np.pi # potentially wrong
     kpts = kpts.dot(bvec)*2.*np.pi if crys else kpts*2.*np.pi
     for q in range(nks):
         dyn1 = np.zeros((N*3,N*3),dtype=complex) # temperoary
@@ -60,17 +59,9 @@ def DynBuild(basis,bvec,fc,nn,label,kpts,Ni,Mass,crys=True):
                 # OFF-diagonal
                 dyn1[i*3:i*3+3,ka*3:ka*3+3] += fc[i][j]*np.exp(-1j*np.dot(kpts[q],x))
         # ABCM matrices
-        # print dyn1.real
-        # print dyn1.imag
         R = dyn1[0:Ni*3,0:Ni*3]; S = dyn1[Ni*3:,Ni*3:]
         T = dyn1[0:Ni*3,Ni*3:]; Ts = dyn1[Ni*3:,0:Ni*3]
-        # print dyn1.real
-        # print pinv(S).real
-        # print S.real
-        # print S.imag
-        # print np.allclose(T,np.conj(Ts.T))
-        # print R.shape,S.shape,T.shape,Ts.shape
-        # tmp = T.dot(inv(S)); dyn[q] = np.dot(M_1, R - tmp.dot(Ts))
+        # ABCM operation
         tmp = np.dot(inv(S),Ts); dyn[q] = np.dot(M_1, R - np.dot(T,tmp))
     # scale it to SI unit, omega^2 not frequency^2 after diagonalisation
     return dyn*M_THZ
@@ -169,27 +160,30 @@ class ABCM(object):
         x,y,z = np.mgrid[-X:X+1, -Y:Y+1, -Z:Z+1]
         x = x.reshape(-1); y = y.reshape(-1); z = z.reshape(-1)
         xyz = np.asarray((x,y,z)).T; rgrid = xyz.dot(self.lvec) # fix this hidden bug
-        allatoms = []
-        for item in self.bas:
-            allatoms = item+rgrid if allatoms == [] \
-                else np.vstack((allatoms,item+rgrid))
+        # allatoms = []
+        # for item in self.bas:
+        #     allatoms = item+rgrid if allatoms == [] \
+        #         else np.vstack((allatoms,item+rgrid))
+        # the most efficient way to get allatoms
+        allatoms = (self.bas.reshape(-1,1,3)+rgrid).reshape(-1,3)
         self.label = []; self.nn = []; self.nndist = []
         for i in range(self.N):
-            dist = np.array([norm(self.bas[i]-item) for item in allatoms])
+            dist = norm(self.bas[i]-allatoms,axis=1)
             nn_ind = dist.argsort()[1:nmax] # consider the first nmax n.n.
             if showDist: print dist[nn_ind]
+            nn_cut0 = self.nn_cut
             if self.nn_cut>nmax-1:
-                print dist[nn_ind]
                 # you probably have interface problems
-                raise ValueError("You might need to inspect the nearest neighbours \
-                and need to set a reasonable dist2.")
+                print "You might need to inspect the nearest neighbours \
+                and need to set a reasonable dist2."
+                nn_cut0 = nmax-1
 
             if dist2 == None:
-                first_nn_ind = nn_ind[0:self.nn_cut]
+                first_nn_ind = nn_ind[0:nn_cut0]
             else:
                 # if dist2 exisits, count till that distance
-                first_nn_ind = [item for item in nn_ind if \
-                        dist[item]<=dist2]
+                first_nn_ind = nn_ind[dist[nn_ind]<=dist2]
+
             label = np.array(first_nn_ind)/len(rgrid)
             nn = allatoms[first_nn_ind]
             nndist = dist[first_nn_ind]
@@ -199,9 +193,6 @@ class ABCM(object):
         self.nnsymb = []
         for i in range(self.N):
             self.nnsymb.append(self.symbol[self.label[i]])
-        # fill in 2nd n.n. information
-        if dist2:
-            self.n2 = [len(self.nn[i])-self.n1[i] for i in range(self.N)]
 
     def set_fc(self,fc_dict):
         '''
@@ -343,7 +334,7 @@ class ABCM(object):
         return -np.multiply(tmp,tmp.T)*a/d/d*8
 
     def get_phi1(self,s,i,j):
-        """first derivative divided by distant"""
+        """first derivative divided by distant; not in use"""
         dvec = (self.bas[i]-self.nn[i][j]); d = norm(dvec)
         one = np.ones((3,3)); tmp = dvec*one
         return (np.multiply(tmp,tmp.T)/d/d-np.identity(3))*s*8
@@ -584,14 +575,14 @@ class ABCM(object):
         else:
             print "You have not done a DOS calc."
 
-    def save(self,filename="myvffm.pickle"):
+    def save(self,filename="myabcm.pickle"):
         """
         Save the whole object to Python pickle.
         filename: string
         """
         pickle.dump(self,open(filename,"wb"))
 
-    def reload(filename="myvffm.pickle"):
+    def reload(filename="myabcm.pickle"):
         """Reload previous calculation"""
         return pickle.load(open(filename))
 
@@ -606,9 +597,9 @@ class ABCM(object):
         if phunit.lower() == "thz":
             freq = np.sort(self.freq)
         elif phunit.lower() == "mev":
-            freq = np.sort(self.freq)
+            freq = np.sort(self.freq)*THZ_TO_MEV
         elif phunit.lower() == "cm-1" or phunit.lower() == "cm":
-            freq = np.sort(self.freq)*33.3333
+            freq = np.sort(self.freq)*THZ_TO_CM
         else:
             exit(phunit+" is not supported!")
         kp = self.gen_kpath()
