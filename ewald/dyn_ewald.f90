@@ -81,7 +81,7 @@
                     kr = DOT_PRODUCT(kmesh(nkk,:),r)
                     k_q = kmesh(nkk,:)+qvec(n0,:)
                     ! examine the qvec so that it is not too small
-                    IF (SQRT(DOT_PRODUCT(k_q,k_q)) .LT. 1.0D-9) THEN
+                    IF (SQRT(DOT_PRODUCT(k_q,k_q)) .LT. 1.0D-10) THEN
                         IF (nq-n0 .gt. 0) THEN
                             k_q = k_q+1.0D-6*(qvec(n0+1,:)-k_q)
                         ELSE IF (n0 .eq. nq .and. nq .ne. 1) THEN
@@ -211,7 +211,7 @@
                     kr = DOT_PRODUCT(kmesh(nkk,:),r)
                     k_q = kmesh(nkk,:)+qvec(n0,:)
                     ! examine the qvec so that it is not too small
-                    IF (SQRT(DOT_PRODUCT(k_q,k_q)) .LT. 1.0D-9) THEN
+                    IF (SQRT(DOT_PRODUCT(k_q,k_q)) .LT. 1.0D-10) THEN
                         IF (nq-n0 .gt. 0) THEN
                             k_q = k_q+1.0D-6*(qvec(n0+1,:)-k_q)
                         ELSE IF (n0 .eq. nq .and. nq .ne. 1) THEN

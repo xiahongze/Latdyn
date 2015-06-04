@@ -275,7 +275,7 @@ class ABCM(object):
                             #     raise ValueError("Missing interaction: "+key1)
                         elif onsite != "BC" and offsite[j]=="BC" and offsite[k]=="BC": # BC-bond-bending
                             r1 = self.bas[i]-self.nn[i][j]; r2 = self.bas[i]-self.nn[i][k]
-                            if np.allclose(norm(r1),norm(r2)): # same bond length
+                            if abs(norm(r1)-norm(r2))<1e-4: # same bond length
                                 key1 = "BC"+"-"+onsite
                                 key2 = onsite+"-"+"BC"
                                 if b_dict.has_key(key1):
@@ -286,7 +286,7 @@ class ABCM(object):
                                 #     raise ValueError("Missing interaction: "+key1)
                         elif onsite == "BC" and offsite[j]!="BC" and offsite[k]=="BC": # BC-bond-bending
                             r1 = self.nn[i][j]-self.bas[i]; r2 = self.nn[i][j]-self.nn[i][k]
-                            if np.allclose(norm(r1),norm(r2)): # same bond length
+                            if abs(norm(r1)-norm(r2))<1e-4: # same bond length
                                 key1 = "BC"+"-"+offsite[j]
                                 key2 = offsite[j]+"-"+"BC"
                                 if b_dict.has_key(key1):
@@ -297,7 +297,7 @@ class ABCM(object):
                                 #     raise ValueError("Missing interaction: "+key1)
                         elif onsite == "BC" and offsite[j]=="BC" and offsite[k]!="BC": # BC-bond-bending
                             r1 = self.nn[i][k]-self.bas[i]; r2 = self.nn[i][k]-self.nn[i][j]
-                            if np.allclose(norm(r1),norm(r2)): # same bond length
+                            if abs(norm(r1)-norm(r2))<1e-4: # same bond length
                                 key1 = "BC"+"-"+offsite[k]
                                 key2 = offsite[k]+"-"+"BC"
                                 if b_dict.has_key(key1):
@@ -308,7 +308,7 @@ class ABCM(object):
                                 #     raise ValueError("Missing interaction: "+key1)
                         elif onsite!="BC" and offsite[j]!="BC" and offsite[k]!="BC": # ion-bod-bending
                             r1 = self.bas[i]-self.nn[i][j]; r2 = self.bas[i]-self.nn[i][k]
-                            if np.allclose(norm(r1),norm(r2)): # same bond length
+                            if abs(norm(r1)-norm(r2))<1e-4: # same bond length
                                 keys = list(permutations([onsite,offsite[j],offsite[k]]))
                                 for item in keys:
                                     key = item[0]+"-"+item[1]+"-"+item[2]
@@ -773,7 +773,8 @@ class ABCM(object):
         assert len(self.src_freq) == self.nkpt
         if self.ecalc != None:
             res = minimize(self.__fit_ewald,x0=x0,method=method,options={"maxiter":maxiter})
-            # res = minimize(self.__fit_ewald,x0=x0,method=method,bounds=((0.01,100),(0.01,100),(0.01,100),(0.01,100),(0.01,100),(0,5)))
+            # res = minimize(self.__fit_ewald,x0=x0,method=method,options={"maxiter":maxiter},
+            # bounds=((0.01,100),(0.01,100),(0.01,100),(0.01,100),(0,10)))
         else:
             res = minimize(self.__fit_no_ewald,x0=x0,method=method)
 
