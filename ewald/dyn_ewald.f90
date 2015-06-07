@@ -2,7 +2,7 @@
 ! This is an auxiliary program that helps build the dynamical matrix for Ewald summation.
 ! It is written in Fortran and compiled so that speed is guaranteed.
 ! Hongze Xia, Sat Aug 23 18:19:39 2014
-! f2py -c -m dyn_ewald dyn_ewald.pyf dyn_ewald.f90
+! f2py -llapack -lblas -c -m dyn_ewald dyn_ewald.pyf dyn_ewald.f90
 ! Wed 22 Apr 2015 15:21:57 AEST: subroutine dyn_abcm is added to this file
 ! --------------------------------------------------------------------------------------------------
     SUBROUTINE vffm(atoms,mass,charge,rmesh,kmesh,alpha,vol,qvec,dyn,N,nq,nr,nk)

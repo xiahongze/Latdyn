@@ -5,6 +5,11 @@ This project aims to create a versatile Python library that is capable of produc
 
 The author have created the Valence Force Field Model and the Adiabatic Bond-Charge Model for this Python library. These two models are capable of dealing with regular structures like simple cubic, face centre cube and hexagonal close pack. Ideal/Same length bonding is essential for these models to work. I had to admit this is a shortcoming. Nevertheless, the capability of these two models should not be underestimated as many superlattices are based on regular bonding bulk materials.
 
-The Coulombic interaction is done via Ewald summation technique and due to the intensity of this calculation, fortran codes are used to ease the computational burden. To compile this fortran module, one needs to go to "Latdyn/ewald/" and run "./f2py -c -m dyn_ewald dyn_ewald.pyf dyn_ewald.f90" provided that "f2py" is made executable and you have gfortran compiler installed in your system.
+The Coulombic interaction is done via Ewald summation technique and due to the intensity of this calculation, fortran codes are used to ease the computational burden. To compile this fortran module, one needs to go to "Latdyn/ewald/" and run "./f2py -llapack -lblas -c -m dyn_ewald dyn_ewald.pyf dyn_ewald.f90" provided that "f2py" is made executable and you have gfortran compiler installed in your system.
+
+**Required libraries&packages:**
+
+- python-dev, numpy, scipy, matplotlib
+- gfortran, lapack, blas
 
 To be continued.
