@@ -2,7 +2,7 @@
 # Example #
 ###########
 import numpy as np
-from Latdyn.ewald import Ewald
+from Latdyn import Ewald
 lvec = np.array([[0.5,0.5,0.],
                  [0.5,0.,0.5],
                  [0.,0.5,0.5]])

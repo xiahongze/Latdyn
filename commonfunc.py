@@ -2,6 +2,7 @@
 import numpy as np
 from numpy.linalg import inv,eigh,eig,norm
 from constants import M_THZ,TPI,KB,THZ_TO_J
+import pickle
 
 def EigenSolver(m,fldata="freq_mode_dyn.pckl",herm=True):
     """
@@ -110,3 +111,13 @@ def tetra_dos(freq,kgrid,grid,N,nstep):
     integral = np.trapz(y=dos,x=fall)
     dos *= N*3.0/integral
     return (fall,dos)
+
+def RemoveDuplicateRow(a):
+    b = np.ascontiguousarray(a).view(np.dtype((np.void, a.dtype.itemsize * a.shape[1])))
+    _, idx = np.unique(b, return_index=True)
+    return a[idx]
+    pass
+
+def Reload(filename="mycalc.pickle"):
+    """Reload previous calculation"""
+    return pickle.load(open(filename))

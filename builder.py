@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 import numpy as np
+from numpy.linalg import norm
+from commonfunc import RemoveDuplicateRow
 
 def BulkBuilder(crystype,withBC=False,r12=None):
     """
@@ -147,3 +149,86 @@ def MQW(crystype,N=2,withBC=False,r12=None):
         return a,ion,bc,symion,symbc
     if not withBC:
         return a,ion,symion
+
+# def QD(crystype,r0,a0,withBC=False,r12=None):
+#     """docstring for QD"""
+#     N = int( np.around(r0/a0) ) * 2
+#     if N == 0: raise ValueError, "Radius is too small!"
+#     if crystype.lower() == 'diamond':
+#         # build 3D mesh
+#         x,y,z = np.mgrid[-N:N+1, -N:N+1, -N:N+1]
+#         x = x.reshape(-1); y = y.reshape(-1); z = z.reshape(-1)
+#         xyz = np.asarray((x,y,z)).T
+#         # primitive cell
+#         afcc,b0,symion0 = BulkBuilder('diamond',withBC=False,r12=None)
+#         rgrid = xyz.dot(afcc)
+#         # ion positions and symbols
+#         allion = (b0.reshape(-1,1,3)+rgrid).reshape(-1,3)
+#         symion = np.tile(symion0,(2*N+1)**3)
+#         if withBC and r12 != None:
+#             rbc1 = r12/(r12+1.)
+#             bc0 = Bonding("diamond")*rbc1
+#             symbc = np.tile(["BC"]*4,(2*N+1)**3)
+#             allbc = (bc0.reshape(-1,1,3)+rgrid).reshape(-1,3)
+#             allatoms = np.vstack((allion,allbc))
+#             symbol = np.append(symion,symbc)
+#         elif withBC and r12 == None:
+#             raise ValueError("The BC-ion length ratio r12 needs to be set!")
+#         else:
+#             allatoms = allion
+#             symbol = symion
+#         # print symbol.shape,allatoms.shape
+#         dist = norm(allatoms,axis=1) # [0,0,0] is the centre
+#         mask = (dist<=(r0/a0))
+#         a = np.array([[N,0,0],[0,N,0],[0,0,N]])*1.5
+#         b = allatoms[mask]
+#         symb = symbol[mask]
+#         # print b.shape,symb.shape
+#         return a,b,symb
+#     else:
+#         raise ValueError(crystype+" is not yet supported!")
+
+def QD(crystype,r0,a0,withBC=False,r12=None):
+    """docstring for QD"""
+    N = int( np.around(r0/a0) ) * 2
+    if N == 0: raise ValueError, "Radius is too small!"
+    if crystype.lower() == 'diamond':
+        # build 3D mesh
+        x,y,z = np.mgrid[-N:N+1, -N:N+1, -N:N+1]
+        x = x.reshape(-1); y = y.reshape(-1); z = z.reshape(-1)
+        xyz = np.asarray((x,y,z)).T
+        # primitive cell
+        afcc,b0,symion0 = BulkBuilder('diamond',withBC=False,r12=None)
+        rgrid = xyz.dot(afcc)
+        # ion positions and symbols
+        allion0 = (b0[0]+rgrid).reshape(-1,3)
+        allion1 = (b0[1]+rgrid).reshape(-1,3)
+        dist = norm(allion0,axis=1) # [0,0,0] is the centre
+        mask = (dist<=(r0/a0)); allion0 = allion0[mask]
+        dist = norm(allion1,axis=1) # [0,0,0] is the centre
+        mask = (dist<=(r0/a0)); allion1 = allion1[mask]
+        symion = np.asarray(["A0"]*allion0.shape[0]+["A1"]*allion1.shape[0])
+        allion = np.vstack((allion0,allion1))
+        if withBC and r12 != None: 
+            rbc1 = r12/(r12+1.)
+            bc0 = Bonding("diamond")*rbc1
+            # symbc = np.tile(["BC"]*4,(2*N+1)**3)
+            allbc0 = (bc0.reshape(-1,1,3)+allion0).reshape(-1,3)
+            allbc1 = (-bc0.reshape(-1,1,3)+allion1).reshape(-1,3)
+            allbc = np.vstack((allbc0,allbc1))
+            allbc = RemoveDuplicateRow(allbc)
+            symbc = np.tile("BC",allbc.shape[0])
+            allatoms = np.vstack((allion,allbc))
+            symbol = np.append(symion,symbc)
+        elif withBC and r12 == None:
+            raise ValueError("The BC-ion length ratio r12 needs to be set!")
+        else:
+            allatoms = allion
+            symbol = symion
+        # print symbol.shape,allatoms.shape
+        dist = norm(allatoms,axis=1) # [0,0,0] is the centre
+        a = np.array([[N,0,0],[0,N,0],[0,0,N]])*1.5
+        b = allatoms
+        return a,b,symbol
+    else:
+        raise ValueError(crystype+" is not yet supported!")

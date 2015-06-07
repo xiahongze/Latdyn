@@ -90,6 +90,8 @@ class ABCM(object):
         self.kpts = []
         # initialise the dynamical matrix
         self.dyn = []
+        # initialise the dispersions
+        self.freq = []
         # initialise dos
         self.dos = []
         # set the reciprocal lattice
@@ -201,7 +203,7 @@ class ABCM(object):
         at the n.n for each atom in the basis. i.e., calc.get_nn_label()
         fc_dict must have this kind of format:
         fc_dict = {
-        "alpha":a_dict,"beta":b_dict
+        "alpha":a_dict,"beta":b_dict,"sigma":s_dict
         }
         a_dict and b_dict look like:
         a_dict = {
@@ -210,17 +212,31 @@ class ABCM(object):
         b_dict = {
         "BC-Ga":10., "BC-As": 20.
         }
+        s_dict = {
+        "BC-Ga":10., "BC-As": 20.
+        }
         The last one with a trailing 2 indicates a second n.n. interactions.
         '''
         self.fc = []
-        a_dict = fc_dict["alpha"]; b_dict = fc_dict["beta"]
         # initialise the FCs
-        self.na = len(fc_dict['alpha'])
-        self.nb = len(fc_dict['beta'])
-        self.akeys = fc_dict['alpha'].keys()
-        self.bkeys = fc_dict['beta'].keys()
-        self.avalues = fc_dict["alpha"].values()
-        self.bvalues = fc_dict["beta"].values()
+        if fc_dict.has_key("alpha"):
+            a_dict = fc_dict["alpha"]
+            self.na = len(a_dict)
+            self.akeys = a_dict.keys()
+            self.avalues = a_dict.values()
+
+        if fc_dict.has_key("beta"):
+            b_dict = fc_dict["beta"]
+            self.nb = len(b_dict)
+            self.bkeys = b_dict.keys()
+            self.bvalues = b_dict.values()
+
+        if fc_dict.has_key("sigma"):
+            s_dict = fc_dict["sigma"]
+            self.ns = len(s_dict)
+            self.skeys = s_dict.keys()
+            self.svalues = s_dict.values()
+
         self.fc_dict = fc_dict
 
         for i in range(self.N):
@@ -234,10 +250,21 @@ class ABCM(object):
                 key2 = offsite[j]+"-"+onsite
                 # isbcbc = (onsite == "BC" and offsite[j] == "BC")
                 # isionbc = ((onsite == "BC" and offsite[j] != "BC") and (onsite != "BC" and offsite[j] == "BC"))
+                # isionion = not ("BC" in [onsite,offsite[j]])
                 if a_dict.has_key(key1):
-                    alp = a_dict[key1]; FC[j] += self.get_centre_fc(alp,i,j)
+                    alp = a_dict[key1]
+                    if 's_dict' in locals():
+                        sig = s_dict[key1] if s_dict.has_key(key1) else 0.0
+                    else:
+                        sig = 0.0
+                    FC[j] += self.get_centre_fc(alp,i,j,sig)
                 elif a_dict.has_key(key2):
-                    alp = a_dict[key2]; FC[j] += self.get_centre_fc(alp,i,j)
+                    alp = a_dict[key2]
+                    if 's_dict' in locals():
+                        sig = s_dict[key2] if s_dict.has_key(key2) else 0.0
+                    else:
+                        sig = 0.0
+                    FC[j] += self.get_centre_fc(alp,i,j,sig)
                 # elif isbcbc or isionbc:
                 #     pass
                 # else:
@@ -279,9 +306,19 @@ class ABCM(object):
                                 key1 = "BC"+"-"+onsite
                                 key2 = onsite+"-"+"BC"
                                 if b_dict.has_key(key1):
-                                    bet = b_dict[key1]; FC[j] += self.get_bending_fc(bet,i,j,k,1)
+                                    bet = b_dict[key1]; key1 += "-BC"
+                                    if 's_dict' in locals():
+                                        sig = s_dict[key1] if s_dict.has_key(key1) else 0.0
+                                    else:
+                                        sig = 0.0
+                                    FC[j] += self.get_bending_fc(bet,i,j,k,1,sig)
                                 elif b_dict.has_key(key2):
-                                    bet = b_dict[key2]; FC[j] += self.get_bending_fc(bet,i,j,k,1)
+                                    bet = b_dict[key2]; key2 = "BC-"+key2
+                                    if 's_dict' in locals():
+                                        sig = s_dict[key2] if s_dict.has_key(key2) else 0.0
+                                    else:
+                                        sig =0.0
+                                    FC[j] += self.get_bending_fc(bet,i,j,k,1,sig)
                                 # else:
                                 #     raise ValueError("Missing interaction: "+key1)
                         elif onsite == "BC" and offsite[j]!="BC" and offsite[k]=="BC": # BC-bond-bending
@@ -290,9 +327,19 @@ class ABCM(object):
                                 key1 = "BC"+"-"+offsite[j]
                                 key2 = offsite[j]+"-"+"BC"
                                 if b_dict.has_key(key1):
-                                    bet = b_dict[key1]; FC[j] += self.get_bending_fc(bet,i,j,k,2)
+                                    bet = b_dict[key1]; key1 += "-BC"
+                                    if 's_dict' in locals():
+                                        sig = s_dict[key1] if s_dict.has_key(key1) else 0.0
+                                    else:
+                                        sig = 0.0
+                                    FC[j] += self.get_bending_fc(bet,i,j,k,2,sig)
                                 elif b_dict.has_key(key2):
-                                    bet = b_dict[key2]; FC[j] += self.get_bending_fc(bet,i,j,k,2)
+                                    bet = b_dict[key2]; key2 = "BC-"+key2
+                                    if 's_dict' in locals():
+                                        sig = s_dict[key2] if s_dict.has_key(key2) else 0.0
+                                    else:
+                                        sig = 0.0
+                                    FC[j] += self.get_bending_fc(bet,i,j,k,2,sig)
                                 # else:
                                 #     raise ValueError("Missing interaction: "+key1)
                         elif onsite == "BC" and offsite[j]=="BC" and offsite[k]!="BC": # BC-bond-bending
@@ -301,9 +348,19 @@ class ABCM(object):
                                 key1 = "BC"+"-"+offsite[k]
                                 key2 = offsite[k]+"-"+"BC"
                                 if b_dict.has_key(key1):
-                                    bet = b_dict[key1]; FC[j] += self.get_bending_fc(bet,i,j,k,3)
+                                    bet = b_dict[key1]; key1 += "-BC"
+                                    if 's_dict' in locals():
+                                        sig = s_dict[key1] if s_dict.has_key(key1) else 0.0
+                                    else:
+                                        sig = 0.0
+                                    FC[j] += self.get_bending_fc(bet,i,j,k,3,sig)
                                 elif b_dict.has_key(key2):
-                                    bet = b_dict[key2]; FC[j] += self.get_bending_fc(bet,i,j,k,3)
+                                    bet = b_dict[key2]; key2 = "BC-"+key2
+                                    if 's_dict' in locals():
+                                        sig = s_dict[key2] if s_dict.has_key(key2) else 0.0
+                                    else:
+                                        sig = 0.0
+                                    FC[j] += self.get_bending_fc(bet,i,j,k,3,sig)
                                 # else:
                                 #     raise ValueError("Missing interaction: "+key1)
                         elif onsite!="BC" and offsite[j]!="BC" and offsite[k]!="BC": # ion-bod-bending
@@ -322,7 +379,7 @@ class ABCM(object):
             self.fc.append(FC)
         # self.fix_interface()
 
-    def get_centre_fc(self,a,i,j):
+    def get_centre_fc(self,a,i,j,s=0):
         """
         generate ion-ion centre force constant tensor
         a: float, force constant
@@ -331,31 +388,25 @@ class ABCM(object):
         """
         dvec = (self.bas[i]-self.nn[i][j]); d = norm(dvec)
         one = np.ones((3,3)); tmp = dvec*one
-        return -np.multiply(tmp,tmp.T)*a/d/d*8
+        return -np.multiply(tmp,tmp.T)*a/d/d*8 + s*np.identity(3)
 
-    def get_phi1(self,s,i,j):
-        """first derivative divided by distant; not in use"""
-        dvec = (self.bas[i]-self.nn[i][j]); d = norm(dvec)
-        one = np.ones((3,3)); tmp = dvec*one
-        return (np.multiply(tmp,tmp.T)/d/d-np.identity(3))*s*8
-
-    def get_bending_fc(self,b,i,j,k,ionsite):
+    def get_bending_fc(self,b,i,j,k,ionsite,s=0):
         one = np.ones((3,3))
         if ionsite == 1: # i sits an ion
             dvec1 = (self.bas[i]-self.nn[i][j]); d1 = norm(dvec1)
             dvec2 = (self.bas[i]-self.nn[i][k]); d2 = norm(dvec2)
             tmp1 = (dvec1+dvec2)*one; tmp2 = -dvec2*one
-            return 2*np.multiply(tmp1.T,tmp2)*b/d1/d2
+            return 2*np.multiply(tmp1.T,tmp2)*b/d1/d2 - s*np.identity(3)
         elif ionsite == 2: # j sits an ion
             dvec1 = self.nn[i][j]-self.bas[i]; d1 = norm(dvec1)
             dvec2 = self.nn[i][j]-self.nn[i][k]; d2 = norm(dvec2)
             tmp1 = (dvec1+dvec2)*one; tmp2 = -dvec2*one
-            return 2*np.multiply(tmp1,tmp2.T)*b/d1/d2
+            return 2*np.multiply(tmp1,tmp2.T)*b/d1/d2 - s*np.identity(3)
         elif ionsite == 3: # k sits an ion
             dvec1 = self.bas[i]-self.nn[i][k]; d1 = norm(dvec1) # BC-ION
             dvec2 = self.nn[i][j]-self.nn[i][k]; d2 = norm(dvec2) # BC-ION
             tmp1 = one*dvec1; tmp2 = (one*dvec2)
-            return 2*np.multiply(tmp1.T,tmp2)*b/d1/d2 # I added T here
+            return 2*np.multiply(tmp1.T,tmp2)*b/d1/d2 + s*np.identity(3)
         else:
             return 0
 
@@ -472,7 +523,8 @@ class ABCM(object):
         force constans and kpts are specified. Return phonon frequencies.
         """
         self.__set_dyn()
-        self.freq,self.evec = EigenSolver(self.dyn,fldata=None,herm=False)
+        if self.freq == []:
+            self.freq,self.evec = EigenSolver(self.dyn,fldata=None,herm=False)
         return self.freq
 
     def get_nn_label(self):
@@ -581,10 +633,6 @@ class ABCM(object):
         filename: string
         """
         pickle.dump(self,open(filename,"wb"))
-
-    def reload(filename="myabcm.pickle"):
-        """Reload previous calculation"""
-        return pickle.load(open(filename))
 
     def save_ph_csv(self,phunit="THz",kpt="cart"):
         """
@@ -760,7 +808,7 @@ class ABCM(object):
         np.set_printoptions(suppress=True)
 
         # initialise x0
-        x0 = np.array(fc_dict['alpha'].values()+fc_dict['beta'].values())
+        x0 = np.array(fc_dict['alpha'].values()+fc_dict['beta'].values()+fc_dict['sigma'].values())
         # add eps if needed
         if self.ecalc != None:
             x0 = np.hstack((x0,eps0))
@@ -797,18 +845,19 @@ class ABCM(object):
     def __fit_ewald(self,x0):
         # x0 = abs(x0)
         fc = x0[:-1]; self.eps = x0[-1]
-        afc = fc[:self.na]; bfc = fc[self.na:]
-        # swap FC if necessary
-        # if afc[1]<afc[2]:
-        #     tmp=afc[1]; afc[1]=afc[2]; afc[2]=tmp
-        # if bfc[0]<bfc[1]:
-        #     tmp=bfc[0]; bfc[0]=bfc[1]; bfc[1]=bfc[0]
-        for i in range(self.na):
-            self.fc_dict['alpha'][self.akeys[i]] = afc[i]
-        print "alpha: ", self.fc_dict['alpha']
-        for i in range(self.nb):
-            self.fc_dict['beta'][self.bkeys[i]] = bfc[i]
-        print "beta: ", self.fc_dict['beta']
+        afc = fc[:self.na]; bfc = fc[self.na:self.na+self.nb]; sfc = fc[self.na+self.nb:]
+        if self.fc_dict.has_key('alpha'):
+            for i in range(self.na):
+                self.fc_dict['alpha'][self.akeys[i]] = afc[i]
+            print "alpha: ", self.fc_dict['alpha']
+        if self.fc_dict.has_key('beta'):
+            for i in range(self.nb):
+                self.fc_dict['beta'][self.bkeys[i]] = bfc[i]
+            print "beta: ", self.fc_dict['beta']
+        if self.fc_dict.has_key('sigma'):
+            for i in range(self.ns):
+                self.fc_dict['sigma'][self.skeys[i]] = sfc[i]
+            print "sigma: ", self.fc_dict['sigma']
         print "eps = %10.5f" % self.eps
         self.set_fc(self.fc_dict)
         dyn0 = DynBuild(self.bas,self.bvec,self.fc,\

@@ -43,7 +43,8 @@ class Ewald(object):
             map(np.array, (lvec, basis, charge, alpha))
         assert self.lvec.shape == (3,3)
         assert len(self.bas) == len(self.cha)
-        assert np.sum(self.cha) == 0
+        if np.sum(self.cha) != 0:
+            print "Warning: sum of charges is not zero!"
         rgrid, kgrid = map(np.array, (rgrid, kgrid))
         assert rgrid.shape == (3,)
         assert kgrid.shape == (3,)
