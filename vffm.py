@@ -306,13 +306,15 @@ class VFFM(object):
                         elif b_dict.has_key(key4):
                             key_b = key4
                         else:
-                            raise ValueError("Missing interaction: "+key3)
+                            # raise ValueError("Missing interaction: "+key3)
+                            pass
                         if b_dict.has_key(key1):
                             key_a = key1
                         elif b_dict.has_key(key2):
                             key_a = key2
                         else:
-                            raise ValueError("Missing interaction: "+key1)
+                            # raise ValueError("Missing interaction: "+key1)
+                            pass
                         if (j < self.n1[i] and j < self.n1[i]) or (j >= self.n1[i] and j >= self.n1[i]):
                             b_avg = (b_dict[key_b]+b_dict[key_a])*0.5
                             tmp.append(b_avg)
@@ -325,12 +327,12 @@ class VFFM(object):
             #
             self.fc.append(ConstructFC \
                 (alp,bet,self.nn[i],self.bas[i]))
-        self.__fix_interface()
+        # self.fix_interface()
 
-    def __fix_interface(self):
+    def fix_interface(self):
         # Average the interface connection for set_fc()
         for i in range(self.N):
-            print "Checking atom ",i
+            # print "Checking atom ",i
             for j in range(len(self.nn[i])):
                 bond0 = self.bas[i] - self.nn[i][j]
                 offsiteLabel = self.label[i][j]
@@ -782,7 +784,7 @@ class VFFM(object):
 
     def __fit_no_ewald2(self,x0):
         a0,b0,a1,b1 = abs(x0)
-        print "alpha = %10.6f; beta = %10.6f; alpha1 = %10.6f; beta1 = %10.6f" % (a,b,a1,b1)
+        print "alpha = %10.6f; beta = %10.6f; alpha1 = %10.6f; beta1 = %10.6f" % (a0,b0,a1,b1)
         self.set_bulk_fc2([a0,a1],[b0,b1])
         freq = np.sort(self.get_ph_disp())
         return ((freq-self.src_freq)**2).sum()/len(freq)

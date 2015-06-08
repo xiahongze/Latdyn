@@ -1,7 +1,7 @@
 from abcm import ABCM
 from vffm import VFFM
 
-from builder import BulkBuilder,Bonding,MQW,QD
+from builder import BulkBuilder,Bonding,MQW,QD,ZBQD
 
 from commonfunc import Reload
 

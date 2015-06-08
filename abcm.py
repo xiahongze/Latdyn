@@ -808,7 +808,10 @@ class ABCM(object):
         np.set_printoptions(suppress=True)
 
         # initialise x0
-        x0 = np.array(fc_dict['alpha'].values()+fc_dict['beta'].values()+fc_dict['sigma'].values())
+        if fc_dict.has_key('sigma'):
+            x0 = np.array(fc_dict['alpha'].values()+fc_dict['beta'].values()+fc_dict['sigma'].values())
+        else:
+            x0 = np.array(fc_dict['alpha'].values()+fc_dict['beta'].values())
         # add eps if needed
         if self.ecalc != None:
             x0 = np.hstack((x0,eps0))

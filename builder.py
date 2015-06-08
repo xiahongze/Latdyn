@@ -232,3 +232,41 @@ def QD(crystype,r0,a0,withBC=False,r12=None):
         return a,b,symbol
     else:
         raise ValueError(crystype+" is not yet supported!")
+        
+def ZBQD(symbol,r0,a0,withBC=False,r1=None,r2=None):
+    """docstring for ZBQD"""
+    A0,A1,A2,A3 = symbol
+    N = int( np.around(r0/a0) )
+    if N == 0: raise ValueError, "Radius is too small!"
+    # build 3D mesh
+    x,y,z = np.mgrid[-N:N+1, -N:N+1, -N:N+1]
+    x = x.reshape(-1); y = y.reshape(-1); z = z.reshape(-1)
+    xyz = np.asarray((x,y,z)).T
+    # primitive cell
+    afcc,b,symion = BulkBuilder('diamond',withBC=False,r12=None)
+    rgrid = xyz.dot(afcc)
+    b0 = (b[0]+rgrid).reshape(-1,3)
+    b1 = (b[1]+rgrid).reshape(-1,3)
+    sym0 = np.tile(A0,b0.shape[0])
+    sym1 = np.tile(A1,b1.shape[0])
+    dist = norm(b0,axis=1) # [0,0,0] is the centre
+    mask0 = (dist>(r0/a0)*1.0)
+    sym0[mask0] = A2
+    dist = norm(b1,axis=1) # [0,0,0] is the centre
+    mask1 = (dist>(r0/a0)*1.0)
+    sym1[mask1] = A3
+    basis = np.vstack((b0,b1))
+    symbolall = np.hstack((sym0,sym1))
+    a = afcc*(2*N+1)
+    # adding BC
+    if withBC and r1!=None and r2!=None:
+        bc0 = Bonding("diamond")*r1/(r1+1)
+        bc1 = Bonding("diamond")*r2/(r2+1)
+        tmp0 = (bc0.reshape(-1,1,3)+b0[np.logical_not(mask0)]).reshape(-1,3)
+        tmp1 = (bc1.reshape(-1,1,3)+b0[mask0]).reshape(-1,3)
+        bc = np.vstack((tmp0,tmp1))
+        symbc = np.tile("BC",bc.shape[0])
+        basis = np.vstack((basis,bc))
+        symbolall = np.append(symbolall,symbc)
+
+    return a,basis,symbolall
