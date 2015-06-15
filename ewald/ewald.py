@@ -20,9 +20,9 @@ import numpy as np
 from numpy.linalg import inv
 from scipy.special import erfc
 from dyn_ewald import vffm,abcm
-M_PROTON         = 1.67262178E-27   # kg
-THZ              = 1.0E+12          # s^-1
-M_THZ            = 1.0/M_PROTON/THZ/THZ
+M_PROTON = 1.67262178E-27   # kg
+THZ = 1.0E+12          # s^-1
+M_THZ = 1.0/M_PROTON/THZ/THZ
 
 class Ewald(object):
     '''
@@ -50,7 +50,7 @@ class Ewald(object):
         assert kgrid.shape == (3,)
         # calculate the unit cell volume and reciprocal lattice vector
         self.v = abs(np.inner(np.cross(self.lvec[0], self.lvec[1]), self.lvec[2]))
-        self.kvec = 2*np.pi*inv(lvec)
+        self.rvec = 2*np.pi*inv(lvec).T # must come with transpose
         # initiate the Ewald parameter
         if alpha == None:
             self.alp = 1.3 / np.power(self.v,1.0/3.0)
@@ -114,7 +114,7 @@ class Ewald(object):
         if choice == 1:
             self.rmesh = xyz.dot(self.lvec)
         else:
-            self.kmesh = xyz.dot(self.kvec)
+            self.kmesh = xyz.dot(self.rvec)
 
     def set_kmesh(self,kgrid):
         self._gen_grid(kgrid,2)
@@ -194,8 +194,7 @@ class Ewald(object):
             raise ValueError("Wrong mode! Need to be either abcm or vffm")
         if qvec.shape == (3,): qvec = np.array([qvec])
         nks = len(qvec); N = len(self.mass)
-        # self.qvec = np.dot(self.kvec,qvec.T).T if crys else qvec*2.*np.pi # this is potentially wrong
-        self.qvec = qvec.dot(self.kvec) if crys else qvec*2.*np.pi
+        self.qvec = qvec.dot(self.rvec) if crys else qvec*2.*np.pi
         if mode == "vffm":
             self.dyn = vffm(self.bas,self.mass,self.cha,self.rmesh,\
                     self.kmesh,self.alp,self.v,self.qvec)*self.v*M_THZ

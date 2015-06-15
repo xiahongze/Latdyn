@@ -85,7 +85,6 @@ def DynBuild(basis,mass,bvec,fc,nn,label,kpts,crys=True):
     N = len(mass); nks = len(kpts)
     dyn = np.zeros((nks,N*3,N*3),dtype=complex)
     # convert kpts to Cartesian coordinates if needed
-    # kpts = np.dot(bvec,kpts.T).T*2.*np.pi if crys else kpts*2.*np.pi # potentially wrong
     kpts = kpts.dot(bvec)*2.*np.pi if crys else kpts*2.*np.pi
     for q in range(nks):
         for i in range(N):
@@ -127,8 +126,8 @@ class VFFM(object):
         self.dyn = []
         # initialise dos
         self.dos = []
-        # set the reciprocal lattice
-        self.bvec = inv(self.lvec)
+        # set the reciprocal lattice, transpose is necessary
+        self.bvec = inv(self.lvec).T
         # number of basis
         self.N = len(self.bas)
         # number of bands
@@ -508,7 +507,7 @@ class VFFM(object):
 
     def plot_dos(self,filename="dos.pdf"):
         """Plot DOS and save it to file."""
-        if self.dos:
+        if self.dos != []:
             import matplotlib.pyplot as plt
             plt.figure(figsize=(8,5))
             w,d = self.dos

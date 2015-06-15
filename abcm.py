@@ -94,8 +94,8 @@ class ABCM(object):
         self.freq = []
         # initialise dos
         self.dos = []
-        # set the reciprocal lattice
-        self.bvec = inv(self.lvec)
+        # set the reciprocal lattice, transpose is necessary
+        self.bvec = inv(self.lvec).T
         # number of basis
         self.N = len(self.bas)
         # work out the number of ions and BCs
@@ -219,23 +219,24 @@ class ABCM(object):
         '''
         self.fc = []
         # initialise the FCs
-        if fc_dict.has_key("alpha"):
+        try:
+        # if fc_dict.has_key("alpha"):
             a_dict = fc_dict["alpha"]
             self.na = len(a_dict)
             self.akeys = a_dict.keys()
             self.avalues = a_dict.values()
-
-        if fc_dict.has_key("beta"):
+        # if fc_dict.has_key("beta"):
             b_dict = fc_dict["beta"]
             self.nb = len(b_dict)
             self.bkeys = b_dict.keys()
             self.bvalues = b_dict.values()
-
-        if fc_dict.has_key("sigma"):
+        # if fc_dict.has_key("sigma"):
             s_dict = fc_dict["sigma"]
             self.ns = len(s_dict)
             self.skeys = s_dict.keys()
             self.svalues = s_dict.values()
+        except KeyError:
+            print "Warning: some keys have been skipped."
 
         self.fc_dict = fc_dict
 
@@ -246,30 +247,20 @@ class ABCM(object):
             # initialise FC tensors
             FC = np.zeros((nos,3,3))
             for j in range(nos):
+                sig = 0.0
                 key1 = onsite+"-"+offsite[j]
                 key2 = offsite[j]+"-"+onsite
-                # isbcbc = (onsite == "BC" and offsite[j] == "BC")
-                # isionbc = ((onsite == "BC" and offsite[j] != "BC") and (onsite != "BC" and offsite[j] == "BC"))
-                # isionion = not ("BC" in [onsite,offsite[j]])
                 if a_dict.has_key(key1):
                     alp = a_dict[key1]
                     if 's_dict' in locals():
-                        sig = s_dict[key1] if s_dict.has_key(key1) else 0.0
-                    else:
-                        sig = 0.0
+                        if s_dict.has_key(key1): sig = s_dict[key1]
                     FC[j] += self.get_centre_fc(alp,i,j,sig)
                 elif a_dict.has_key(key2):
                     alp = a_dict[key2]
                     if 's_dict' in locals():
-                        sig = s_dict[key2] if s_dict.has_key(key2) else 0.0
-                    else:
-                        sig = 0.0
+                        if s_dict.has_key(key2): sig = s_dict[key2]
                     FC[j] += self.get_centre_fc(alp,i,j,sig)
-                # elif isbcbc or isionbc:
-                #     pass
-                # else:
-                #     raise ValueError("Missing interaction: "+key1)
-                # look for bond-bending (2 BCs) and cross-stretching (1 BC)
+
                 for k in range(nos):
                     if k != j:
                         inline = (norm(np.cross(self.bas[i]-self.nn[i][j], self.bas[i]-self.nn[i][k]))<1e-6)
@@ -303,63 +294,54 @@ class ABCM(object):
                         elif onsite != "BC" and offsite[j]=="BC" and offsite[k]=="BC": # BC-bond-bending
                             r1 = self.bas[i]-self.nn[i][j]; r2 = self.bas[i]-self.nn[i][k]
                             if abs(norm(r1)-norm(r2))<1e-4: # same bond length
+                                sig = 0.0
                                 key1 = "BC"+"-"+onsite
                                 key2 = onsite+"-"+"BC"
                                 if b_dict.has_key(key1):
                                     bet = b_dict[key1]; key1 += "-BC"
                                     if 's_dict' in locals():
-                                        sig = s_dict[key1] if s_dict.has_key(key1) else 0.0
-                                    else:
-                                        sig = 0.0
+                                        if s_dict.has_key(key1): sig = s_dict[key1]
                                     FC[j] += self.get_bending_fc(bet,i,j,k,1,sig)
                                 elif b_dict.has_key(key2):
                                     bet = b_dict[key2]; key2 = "BC-"+key2
                                     if 's_dict' in locals():
-                                        sig = s_dict[key2] if s_dict.has_key(key2) else 0.0
-                                    else:
-                                        sig =0.0
+                                        if s_dict.has_key(key2): sig = s_dict[key2]
                                     FC[j] += self.get_bending_fc(bet,i,j,k,1,sig)
                                 # else:
                                 #     raise ValueError("Missing interaction: "+key1)
                         elif onsite == "BC" and offsite[j]!="BC" and offsite[k]=="BC": # BC-bond-bending
                             r1 = self.nn[i][j]-self.bas[i]; r2 = self.nn[i][j]-self.nn[i][k]
                             if abs(norm(r1)-norm(r2))<1e-4: # same bond length
+                                sig = 0.0
                                 key1 = "BC"+"-"+offsite[j]
                                 key2 = offsite[j]+"-"+"BC"
                                 if b_dict.has_key(key1):
                                     bet = b_dict[key1]; key1 += "-BC"
                                     if 's_dict' in locals():
-                                        sig = s_dict[key1] if s_dict.has_key(key1) else 0.0
-                                    else:
-                                        sig = 0.0
+                                        if s_dict.has_key(key1): sig = s_dict[key1]
                                     FC[j] += self.get_bending_fc(bet,i,j,k,2,sig)
                                 elif b_dict.has_key(key2):
                                     bet = b_dict[key2]; key2 = "BC-"+key2
                                     if 's_dict' in locals():
-                                        sig = s_dict[key2] if s_dict.has_key(key2) else 0.0
-                                    else:
-                                        sig = 0.0
+                                        if s_dict.has_key(key2): sig = s_dict[key2]
                                     FC[j] += self.get_bending_fc(bet,i,j,k,2,sig)
                                 # else:
                                 #     raise ValueError("Missing interaction: "+key1)
                         elif onsite == "BC" and offsite[j]=="BC" and offsite[k]!="BC": # BC-bond-bending
                             r1 = self.nn[i][k]-self.bas[i]; r2 = self.nn[i][k]-self.nn[i][j]
                             if abs(norm(r1)-norm(r2))<1e-4: # same bond length
+                                sig = 0.0
                                 key1 = "BC"+"-"+offsite[k]
                                 key2 = offsite[k]+"-"+"BC"
                                 if b_dict.has_key(key1):
                                     bet = b_dict[key1]; key1 += "-BC"
                                     if 's_dict' in locals():
-                                        sig = s_dict[key1] if s_dict.has_key(key1) else 0.0
-                                    else:
-                                        sig = 0.0
+                                        if s_dict.has_key(key1): sig = s_dict[key1]
                                     FC[j] += self.get_bending_fc(bet,i,j,k,3,sig)
                                 elif b_dict.has_key(key2):
                                     bet = b_dict[key2]; key2 = "BC-"+key2
                                     if 's_dict' in locals():
-                                        sig = s_dict[key2] if s_dict.has_key(key2) else 0.0
-                                    else:
-                                        sig = 0.0
+                                        if s_dict.has_key(key2): sig = s_dict[key2]
                                     FC[j] += self.get_bending_fc(bet,i,j,k,3,sig)
                                 # else:
                                 #     raise ValueError("Missing interaction: "+key1)
@@ -486,7 +468,6 @@ class ABCM(object):
         else:
             print "Wrong input for k-conversion!"
             pass
-        # self.kpts = np.dot(convec,self.kpts.T).T # this is potentially wrong
         self.kpts = self.kpts.dot(convec)
         # for i in range(self.nkpt):
         #     self.kpts[i] = np.dot(self.kpts[i],convec)
@@ -566,7 +547,7 @@ class ABCM(object):
         freq = np.sort(self.get_ph_disp())
 
         self.dos = tetra_dos(freq,kgrid,grid,self.N,nstep)
-        np.savetxt("dos.csv", self.dos, delimiter=",",fmt="%10.5f")
+        np.savetxt("dos.txt", self.dos.T, delimiter="\t",fmt="%10.5f")
         return self.dos
 
     def plot(self,mytup=None,filename=None):
@@ -611,7 +592,7 @@ class ABCM(object):
 
     def plot_dos(self,filename="dos.pdf"):
         """Plot DOS and save it to file."""
-        if self.dos:
+        if self.dos!=[]:
             import matplotlib.pyplot as plt
             plt.figure(figsize=(8,5))
             w,d = self.dos
@@ -652,15 +633,15 @@ class ABCM(object):
             exit(phunit+" is not supported!")
         kp = self.gen_kpath()
         dt = np.hstack((kp.reshape(-1,1),freq))
-        np.savetxt("phfreq.csv", dt, delimiter=",",fmt="%10.5f",
+        np.savetxt("phfreq.txt", dt, delimiter="\t",fmt="%10.5f",
         header="Phonon frequency in unit of "+phunit)
         self.k_conv(kpt)
-        np.savetxt("phkpath.csv", self.kpts, delimiter=",",fmt="%8.3f",
+        np.savetxt("phkpath.txt", self.kpts, delimiter="\t",fmt="%8.3f",
         header="k-path in unit of "+kpt)
 
     def gen_kpath(self):
         self.k_conv("cart")
-        tmp1 = self.kpts[0:-1]-self.kpts[1::]
+        tmp1 = self.kpts[1:]-self.kpts[:-1]
         tmp2 = norm(tmp1,axis=1)
         tmp3 = np.zeros(len(tmp2)+1)
         for i in range(len(tmp2)):

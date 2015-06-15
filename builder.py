@@ -76,7 +76,7 @@ def Bonding(crystype):
     if crystype.lower() == 'diamond':
         bc = np.array([[1,1,1],[-1,-1,1],[-1,1,-1],[1,-1,-1]])*0.25
     elif crystype.lower() == 'wurtzite':
-        a,ion = Builder('wurtzite')
+        a,ion,symion = BulkBuilder('wurtzite')
         bc0 = np.array([[ 0.     ,  0.57735,  0.61237],
                                 [-0.5    ,  0.28868, -0.20412],
                                 [ 0.5    ,  0.28868, -0.20412],
@@ -116,7 +116,7 @@ def MQW(crystype,N=2,withBC=False,r12=None):
         elif withBC and r12 == None:
             raise ValueError("The BC-ion length ratio r12 needs to be set!")
     elif crystype.lower() == 'wurtzite':
-        a,ion0 = Builder('wurtzite')
+        a,ion0,symion = BulkBuilder('wurtzite')
         c = a[2,2]
         a[2] *= N # scale on the c-axis
         # ALL ion positions
@@ -124,7 +124,7 @@ def MQW(crystype,N=2,withBC=False,r12=None):
         for i in range(1,N):
             tmp = ion0+[0.,0.,c*i]
             ion = np.vstack((ion,tmp))
-        symion = np.asarray(["A0","A0","A1","A1"]*N)
+        symion = np.tile(symion,N)
         if withBC and r12 != None:
             rbc1 = r12/(r12+1.)
             bc0,bc1 = Bonding('wurtzite')

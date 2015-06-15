@@ -110,7 +110,7 @@ def tetra_dos(freq,kgrid,grid,N,nstep):
 
     integral = np.trapz(y=dos,x=fall)
     dos *= N*3.0/integral
-    return (fall,dos)
+    return np.asarray((fall,dos))
 
 def RemoveDuplicateRow(a):
     b = np.ascontiguousarray(a).view(np.dtype((np.void, a.dtype.itemsize * a.shape[1])))
