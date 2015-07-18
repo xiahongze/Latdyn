@@ -225,18 +225,30 @@ class ABCM(object):
             self.na = len(a_dict)
             self.akeys = a_dict.keys()
             self.avalues = a_dict.values()
+            self.alpha = True
+        except KeyError:
+            print "Warning: 'alpha' key have been skipped."
+            self.alpha = False
+        try:
         # if fc_dict.has_key("beta"):
             b_dict = fc_dict["beta"]
             self.nb = len(b_dict)
             self.bkeys = b_dict.keys()
             self.bvalues = b_dict.values()
+            self.beta = True
+        except KeyError:
+            print "Warning: 'beta' key have been skipped."
+            self.beta = False
+        try:
         # if fc_dict.has_key("sigma"):
             s_dict = fc_dict["sigma"]
             self.ns = len(s_dict)
             self.skeys = s_dict.keys()
             self.svalues = s_dict.values()
+            self.sigma = True
         except KeyError:
-            print "Warning: some keys have been skipped."
+            print "Warning: 'sigma' keys have been skipped."
+            self.sigma = False
 
         self.fc_dict = fc_dict
 
@@ -252,12 +264,12 @@ class ABCM(object):
                 key2 = offsite[j]+"-"+onsite
                 if a_dict.has_key(key1):
                     alp = a_dict[key1]
-                    if 's_dict' in locals():
+                    if self.sigma:
                         if s_dict.has_key(key1): sig = s_dict[key1]
                     FC[j] += self.get_centre_fc(alp,i,j,sig)
                 elif a_dict.has_key(key2):
                     alp = a_dict[key2]
-                    if 's_dict' in locals():
+                    if self.sigma:
                         if s_dict.has_key(key2): sig = s_dict[key2]
                     FC[j] += self.get_centre_fc(alp,i,j,sig)
 
@@ -299,12 +311,12 @@ class ABCM(object):
                                 key2 = onsite+"-"+"BC"
                                 if b_dict.has_key(key1):
                                     bet = b_dict[key1]; key1 += "-BC"
-                                    if 's_dict' in locals():
+                                    if self.sigma:
                                         if s_dict.has_key(key1): sig = s_dict[key1]
                                     FC[j] += self.get_bending_fc(bet,i,j,k,1,sig)
                                 elif b_dict.has_key(key2):
                                     bet = b_dict[key2]; key2 = "BC-"+key2
-                                    if 's_dict' in locals():
+                                    if self.sigma:
                                         if s_dict.has_key(key2): sig = s_dict[key2]
                                     FC[j] += self.get_bending_fc(bet,i,j,k,1,sig)
                                 # else:
@@ -317,12 +329,12 @@ class ABCM(object):
                                 key2 = offsite[j]+"-"+"BC"
                                 if b_dict.has_key(key1):
                                     bet = b_dict[key1]; key1 += "-BC"
-                                    if 's_dict' in locals():
+                                    if self.sigma:
                                         if s_dict.has_key(key1): sig = s_dict[key1]
                                     FC[j] += self.get_bending_fc(bet,i,j,k,2,sig)
                                 elif b_dict.has_key(key2):
                                     bet = b_dict[key2]; key2 = "BC-"+key2
-                                    if 's_dict' in locals():
+                                    if self.sigma:
                                         if s_dict.has_key(key2): sig = s_dict[key2]
                                     FC[j] += self.get_bending_fc(bet,i,j,k,2,sig)
                                 # else:
@@ -335,12 +347,12 @@ class ABCM(object):
                                 key2 = offsite[k]+"-"+"BC"
                                 if b_dict.has_key(key1):
                                     bet = b_dict[key1]; key1 += "-BC"
-                                    if 's_dict' in locals():
+                                    if self.sigma:
                                         if s_dict.has_key(key1): sig = s_dict[key1]
                                     FC[j] += self.get_bending_fc(bet,i,j,k,3,sig)
                                 elif b_dict.has_key(key2):
                                     bet = b_dict[key2]; key2 = "BC-"+key2
-                                    if 's_dict' in locals():
+                                    if self.sigma:
                                         if s_dict.has_key(key2): sig = s_dict[key2]
                                     FC[j] += self.get_bending_fc(bet,i,j,k,3,sig)
                                 # else:
@@ -651,7 +663,7 @@ class ABCM(object):
     def get_debye(self,temp,alat=None,kgrid=(4,4,4),koff=(1,1,1)):
         """
             Calculate the Debye specific heat.
-            This method auto saves a plot "debye.pdf" and a CSV file "debye.csv"
+            This method auto saves a plot "debye.pdf" and a text file "debye.txt"
             temp: array
                 In unit Kelvin.
             alat: float
@@ -678,14 +690,15 @@ class ABCM(object):
             tmp = (ph_e/kbt[i])**2 * exp_ph_kbt / (1.0-exp_ph_kbt)**2
             debye[i] = tmp.sum()
         debye *= KB/self.nkpt/self.v/alat**3 * 1.0e24
-        np.savetxt("debye.csv",(temp,debye),delimiter=",",fmt="%10.5f")
+        dt = np.asarray((temp,debye)).T
+        np.savetxt("debye.csv",dt,delimiter="\t",fmt="%10.5f")
         import matplotlib.pyplot as plt
         plt.figure(figsize=(8,5))
         plt.plot(temp,debye,'k-',lw=1)
         plt.xlim(temp.min(), temp.max())
         plt.grid('on')
         plt.xlabel("Temperature (K)",fontsize=18)
-        plt.ylabel('Specific heat ($J K^{-1} cm^{-3}$)',fontsize=18)
+        plt.ylabel('Specific heat (JK$^{-1}$cm$^{-3}$)',fontsize=18)
         plt.savefig("debye.pdf",dpi=300)
         del plt
 
@@ -727,7 +740,7 @@ class ABCM(object):
 
     def get_therm_cond(self,temp,alat=None,x='x',y='x',tau=1.,kgrid=(4,4,4),koff=(1,1,1)):
         """
-            Calculate the Debye specific heat.
+            Calculate the thermal conductivity
             This method auto saves a plot "thermal_cond_K.pdf" and a CSV file "kappa.csv"
             temp: array
                 In unit Kelvin.
@@ -787,9 +800,10 @@ class ABCM(object):
         from scipy.optimize import minimize
         np.set_printoptions(precision=3)
         np.set_printoptions(suppress=True)
-
+        
+        self.set_fc(fc_dict)
         # initialise x0
-        if fc_dict.has_key('sigma'):
+        if self.sigma:
             x0 = np.array(fc_dict['alpha'].values()+fc_dict['beta'].values()+fc_dict['sigma'].values())
         else:
             x0 = np.array(fc_dict['alpha'].values()+fc_dict['beta'].values())
@@ -814,31 +828,36 @@ class ABCM(object):
         del minimize
 
     def __fit_no_ewald(self,fc):
-        fc = np.abs(fc)
-        afc = fc[:self.na]; bfc = fc[self.na:]
-        for i in range(self.na):
-            self.fc_dict['alpha'][self.akeys[i]] = afc[i]
-        print "alpha: ", self.fc_dict['alpha']
-        for i in range(self.nb):
-            self.fc_dict['beta'][self.bkeys[i]] = bfc[i]
-        print "beta: ", self.fc_dict['beta']
+        afc = np.abs(fc[:self.na]); bfc = np.abs(fc[self.na:self.na+self.nb]); sfc = fc[self.na+self.nb:]
+        if self.alpha:
+            for i in range(self.na):
+                self.fc_dict['alpha'][self.akeys[i]] = afc[i]
+            print "alpha: ", self.fc_dict['alpha']
+        if self.beta:
+            for i in range(self.nb):
+                self.fc_dict['beta'][self.bkeys[i]] = bfc[i]
+            print "beta: ", self.fc_dict['beta']
+        if self.sigma:
+            for i in range(self.ns):
+                self.fc_dict['sigma'][self.skeys[i]] = sfc[i]
+            print "sigma: ", self.fc_dict['sigma']
         self.set_fc(self.fc_dict)
         freq = np.sort(self.get_ph_disp())
         return ((freq-self.src_freq)**2).sum()/len(freq)
 
     def __fit_ewald(self,x0):
         # x0 = abs(x0)
-        fc = x0[:-1]; self.eps = x0[-1]
-        afc = fc[:self.na]; bfc = fc[self.na:self.na+self.nb]; sfc = fc[self.na+self.nb:]
-        if self.fc_dict.has_key('alpha'):
+        fc = x0[:-1]; self.eps = abs(x0[-1])
+        afc = np.abs(fc[:self.na]); bfc = np.abs(fc[self.na:self.na+self.nb]); sfc = fc[self.na+self.nb:]
+        if self.alpha:
             for i in range(self.na):
                 self.fc_dict['alpha'][self.akeys[i]] = afc[i]
             print "alpha: ", self.fc_dict['alpha']
-        if self.fc_dict.has_key('beta'):
+        if self.beta:
             for i in range(self.nb):
                 self.fc_dict['beta'][self.bkeys[i]] = bfc[i]
             print "beta: ", self.fc_dict['beta']
-        if self.fc_dict.has_key('sigma'):
+        if self.sigma:
             for i in range(self.ns):
                 self.fc_dict['sigma'][self.skeys[i]] = sfc[i]
             print "sigma: ", self.fc_dict['sigma']

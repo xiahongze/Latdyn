@@ -11,7 +11,7 @@ def BulkBuilder(crystype,withBC=False,r12=None):
         3 by 3 lattice vectors, N by 3 basis vectors if withBC==False
     """
     if crystype.lower() == 'fcc':
-        a = np.array([[0.5,0.5,0.],[0.5,0.,0.5],[0.,0.5,0.5]]) # fcc lattice vectors
+        a = np.array([[-0.5,0.,0.5],[0.,0.5,0.5],[-0.5,0.5,0.]]) # fcc lattice vectors
         b = np.array([[0.,0.,0.]])
     elif crystype.lower() == 'sc':
         a = np.array([[1.,0.,0.],[0.,1.,0.],[0.,0.,1.]])
@@ -22,7 +22,7 @@ def BulkBuilder(crystype,withBC=False,r12=None):
         elif withBC and r12 == None:
             raise ValueError("The BC-ion length ratio r12 needs to be set!")
     elif crystype.lower() == 'diamond':
-        a = np.array([[0.5,0.5,0.],[0.5,0.,0.5],[0.,0.5,0.5]])
+        a = np.array([[-0.5,0.,0.5],[0.,0.5,0.5],[-0.5,0.5,0.]])
         b = np.array([[0.,0.,0.],[0.25,0.25,0.25]])
         if withBC and r12 != None:
             rbc1 = r12/(r12+1.)
@@ -38,7 +38,7 @@ def BulkBuilder(crystype,withBC=False,r12=None):
         if withBC and r12 != None:
             rbc1 = r12/(r12+1.)
             bc0,bc1 = Bonding('wurtzite')
-            bc = np.vstack((bc0*r12+b[0],bc1*r12+b[1]))
+            bc = np.vstack((bc0*rbc1+b[0],bc1*rbc1+b[1]))
         elif withBC and r12 == None:
             raise ValueError("The BC-ion length ratio r12 needs to be set!")
     elif crystype.lower() == 'hcp':
@@ -46,8 +46,8 @@ def BulkBuilder(crystype,withBC=False,r12=None):
         b = np.array([[0.,0.,0.],[2./3.,1./3.,0.0]]).dot(a)
         symion = np.array(["A0","A0"])
     elif crystype.lower() == 'rocksalt':
-        a = np.array([[1.,0.,0.],[0.,1.,0.],[0.,0.,1.]])
-        b = np.array([[0.,0.,0.],[0.5,0.5,0.5]])
+        a = np.array([[-0.5,0.,0.5],[0.,0.5,0.5],[-0.5,0.5,0.]])
+        b = np.array([[0.,0.,0.],[0.5,0.,0.]])
         if withBC and r12 != None:
             rbc1 = r12/(r12+1.)
             bc = Bonding('rocksalt')*rbc1
@@ -78,15 +78,15 @@ def Bonding(crystype):
     elif crystype.lower() == 'wurtzite':
         a,ion,symion = BulkBuilder('wurtzite')
         bc0 = np.array([[ 0.     ,  0.57735,  0.61237],
-                                [-0.5    ,  0.28868, -0.20412],
-                                [ 0.5    ,  0.28868, -0.20412],
-                                [ 0.     ,  1.1547 , -0.20412]])
+                        [-0.5    ,  0.28868, -0.20412],
+                        [ 0.5    ,  0.28868, -0.20412],
+                        [ 0.     ,  1.1547 , -0.20412]])
         bc1 = np.array([[ 0.5    ,  0.28868,  1.42887],
-                                [ 1.     ,  0.57735,  0.61237],
-                                [ 0.5    , -0.28868,  0.61237],
-                                [ 0.     ,  0.57735,  0.61237]])
-        bc0 = bc0-ion[0]
-        bc1 = bc1-ion[1]
+                        [ 1.     ,  0.57735,  0.61237],
+                        [ 0.5    , -0.28868,  0.61237],
+                        [ 0.     ,  0.57735,  0.61237]])
+        bc0 -= ion[0]
+        bc1 -= ion[1]
         bc = (bc0,bc1)
     elif crystype.lower() == 'rocksalt':
         bc = np.array([[1,0,0],[0,1,0],[0,0,1],[-1,0,0],[0,-1,0],[0,0,-1]])*0.5

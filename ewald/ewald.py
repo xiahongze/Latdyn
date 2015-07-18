@@ -26,7 +26,7 @@ M_THZ = 1.0/M_PROTON/THZ/THZ
 
 class Ewald(object):
     '''
-    Class which calculates the total electric-static energy using the classic
+    Class which calculates the total electro-static energy using the classic
     Ewald method.
     Paramters
     ---------
