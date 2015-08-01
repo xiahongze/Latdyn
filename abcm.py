@@ -516,8 +516,7 @@ class ABCM(object):
         force constans and kpts are specified. Return phonon frequencies.
         """
         self.__set_dyn()
-        if self.freq == []:
-            self.freq,self.evec = EigenSolver(self.dyn,fldata=None,herm=False)
+        self.freq,self.evec = EigenSolver(self.dyn,fldata=None,herm=False)
         return self.freq
 
     def get_nn_label(self):
